@@ -74,12 +74,19 @@ fi
 
 # 获取下一个可用的 IP 序号 (1-254)
 get_next_ip_index() {
-    # 提取所有 nat- 容器的序号（包括已停止的）
-    USED_INDICES=$(docker ps -a --filter "name=^nat-" --format "{{.Names}}" | \
-        sed 's/nat-//' | grep -E '^[0-9]+$' | sort -n)
+    # 1. 提取所有 nat- 容器的序号（预留位，包括已停止的）
+    RESERVED_BY_NAME=$(docker ps -a --filter "name=^nat-" --format "{{.Names}}" | \
+        sed 's/nat-//' | grep -E '^[0-9]+$')
+    
+    # 2. 提取 Docker 网络中实际正在使用的 IP 序号 (防止 Address already in use)
+    RESERVED_BY_NET=$(docker network inspect "$NETWORK_NAME" --format '{{range .Containers}}{{.IPv4Address}} {{end}}' | \
+        tr ' ' '\n' | grep "^$IP_PREFIX\." | cut -d'.' -f4 | cut -d'/' -f1)
+    
+    # 合并、排序、去重
+    USED_INDICES=$(echo -e "${RESERVED_BY_NAME}\n${RESERVED_BY_NET}" | sort -n | uniq)
     
     # 从 1 开始查找第一个未使用的序号
-    for i in $(seq 1 254); do
+    for i $(seq 1 254); do
         if ! echo "$USED_INDICES" | grep -qx "$i"; then
             echo "$i"
             return 0
