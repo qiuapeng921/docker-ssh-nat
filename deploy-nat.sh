@@ -1,6 +1,6 @@
 #!/bin/bash
-# NAT 小鸡自动部署脚本 (参数重构版)
-# 用法: bash deploy-nat.sh -t <镜像类型> [-p <密码>] [-c <CPU核心>] [-m <内存MB>]
+# NAT 小鸡全自动部署脚本 (极速性能版)
+# 用法: bash deploy-nat.sh -t <debian|alpine> [选项]
 
 # 自动提升至 Bash 运行
 if [ -z "$BASH_VERSION" ]; then
@@ -17,32 +17,27 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Windows 环境适配: 禁用 Git Bash 的路径转换(防止端口冒号被误转)
+# Windows 环境适配: 禁用 Git Bash 的路径转换
 export MSYS_NO_PATHCONV=1
 export COMPOSE_CONVERT_WINDOWS_PATHS=1
 
-# 默认配置
+# 配置
 SSH_SEARCH_START=10000
 NAT_SEARCH_START=20000
 NAT_PORT_COUNT=100
 DEFAULT_CPU=1
 
-# 帮助信息
 show_help() {
     echo -e "${BLUE}NAT 小鸡部署工具${NC}"
     echo ""
     echo "用法: $0 -t <debian|alpine> [选项]"
     echo ""
     echo "选项:"
-    echo "  -t  镜像类型 (必填: debian 或 alpine)"
-    echo "  -p  Root 密码 (可选, 留空则随机生成 8-10 位)"
-    echo "  -c  CPU 核心限制 (可选, 默认: 1)"
-    echo "  -m  内存限制 MB (可选, Debian 默认: 512, Alpine 默认: 128)"
-    echo "  -h  显示此帮助"
-    echo ""
-    echo "示例:"
-    echo "  $0 -t debian -p MyPass123"
-    echo "  $0 -t alpine -c 0.5 -m 256"
+    echo "  -t  镜像类型 (debian/alpine)"
+    echo "  -p  Root 密码 (可选, 默认随机)"
+    echo "  -c  CPU 核心限制 (默认: 1)"
+    echo "  -m  内存限制 MB (Debian:512, Alpine:128)"
+    exit 0
 }
 
 # 解析参数
@@ -57,96 +52,67 @@ while getopts "t:p:c:m:h" opt; do
         p) PASS=$OPTARG ;;
         c) CPU=$OPTARG ;;
         m) MEM=$OPTARG ;;
-        h) show_help; exit 0 ;;
-        *) show_help; exit 1 ;;
+        h) show_help ;;
+        *) exit 1 ;;
     esac
 done
 
 if [ -z "$TYPE" ]; then
     echo -e "${RED}错误: 必须使用 -t 指定镜像类型${NC}"
-    show_help
     exit 1
 fi
 
-# 处理默认内存
-if [ "$TYPE" = "debian" ]; then
-    MIN_MEM=512
-elif [ "$TYPE" = "alpine" ]; then
-    MIN_MEM=128
-else
-    echo -e "${RED}错误: 不支持的类型 $TYPE${NC}"
-    exit 1
-fi
+# 处理默认内存逻辑
+if [ "$TYPE" = "debian" ]; then MIN_MEM=512; else MIN_MEM=128; fi
+MEM=${MEM:-$MIN_MEM}
+[ "$MEM" -lt "$MIN_MEM" ] && MEM=$MIN_MEM
 
-if [ -z "$MEM" ]; then
-    MEM=$MIN_MEM
-elif [ "$MEM" -lt "$MIN_MEM" ]; then
-    echo -e "${YELLOW}警告: $TYPE 最小内存为 ${MIN_MEM}MB，已自动调整${NC}"
-    MEM=$MIN_MEM
-fi
-
-# 处理密码
+# 随机密码逻辑
 if [ -z "$PASS" ]; then
-    LEN=$((8 + RANDOM % 3))
-    PASS=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c $LEN)
-    echo -e "${YELLOW}提示: 未指定密码，已生成随机密码: ${CYAN}$PASS${NC}"
+    PASS=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c $((8 + RANDOM % 3)))
 fi
 
-# 函数: 检查端口是否被占用
-is_port_occupied() {
-    local port=$1
-    # 1. 优先检查 Docker 容器已映射的端口 (跨平台通用)
-    if docker ps --format '{{.Ports}}' | grep -q ":${port}->"; then
-        return 0
-    fi
-    
-    # 2. 尝试检查系统端口 (带容错)
-    # 针对 Linux 环境使用 netstat -tuln
-    if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v netstat >/dev/null 2>&1; then
-        if netstat -tuln | grep -q ":${port} "; then return 0; fi
-    # 针对 Windows (Git Bash) 环境使用 netstat -ano
-    elif [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
-        if netstat -ano | grep -q "LISTENING" | grep -q ":${port} "; then return 0; fi
-    fi
+echo -e "${YELLOW}正在快速扫描端口资源...${NC}"
 
-    return 1
+# --- 核心优化: 预加载占用端口 ---
+# 1. 获取 Docker 所有已映射端口
+OCCUPIED_DOCKER=$(docker ps --format '{{.Ports}}' | grep -oP '(?<=:)\d+(?=->)' || echo "")
+
+# 2. 获取系统监听端口
+OCCUPIED_SYSTEM=""
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    OCCUPIED_SYSTEM=$(netstat -tuln | awk '{print $4}' | awk -F: '{print $NF}' || echo "")
+elif [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
+    OCCUPIED_SYSTEM=$(netstat -ano | grep LISTENING | awk '{print $3}' | awk -F: '{print $NF}' || echo "")
+fi
+
+# 合并所有占用端口
+ALL_OCCUPIED=" $OCCUPIED_DOCKER $OCCUPIED_SYSTEM "
+
+# 高速检测函数
+is_port_free() {
+    if [[ "$ALL_OCCUPIED" == *" $1 "* ]]; then return 1; fi
+    return 0
 }
 
-# 寻找可用端口
-find_free_ssh_port() {
-    local port=$SSH_SEARCH_START
-    while [ "$port" -lt 20000 ]; do
-        if ! is_port_occupied "$port"; then echo "$port"; return 0; fi
-        port=$((port + 1))
+# 寻找 SSH 端口
+SSH_PORT=""
+for ((p=SSH_SEARCH_START; p<20000; p++)); do
+    if is_port_free $p; then SSH_PORT=$p; break; fi
+done
+
+# 寻找 NAT 块
+NAT_START=""
+for ((current=NAT_SEARCH_START; current<60000; current+=NAT_PORT_COUNT)); do
+    found_block=true
+    for ((p=current; p<current+NAT_PORT_COUNT; p++)); do
+        if ! is_port_free $p; then found_block=false; break; fi
     done
-    echo "FAILED"
-}
+    if [ "$found_block" = true ]; then NAT_START=$current; break; fi
+done
 
-find_free_nat_block() {
-    local current=$NAT_SEARCH_START
-    while [ "$current" -lt 60000 ]; do
-        local block_ok=true
-        local p=$current
-        local end=$((current + NAT_PORT_COUNT))
-        while [ "$p" -lt "$end" ]; do
-            if is_port_occupied "$p"; then
-                block_ok=false
-                break
-            fi
-            p=$((p + 1))
-        done
-        if [ "$block_ok" = true ]; then echo "$current"; return 0; fi
-        current=$((current + NAT_PORT_COUNT))
-    done
-    echo "FAILED"
-}
-
-echo -e "${YELLOW}正在搜寻可用端口资源...${NC}"
-SSH_PORT=$(find_free_ssh_port)
-NAT_START=$(find_free_nat_block)
-
-if [ "$SSH_PORT" = "FAILED" ] || [ "$NAT_START" = "FAILED" ]; then
-    echo -e "${RED}错误: 端口不足!${NC}"
+if [ -z "$SSH_PORT" ] || [ -z "$NAT_START" ]; then
+    echo -e "${RED}错误: 未能找到可用端口块!${NC}"
     exit 1
 fi
 
@@ -154,23 +120,19 @@ NAT_END=$((NAT_START + NAT_PORT_COUNT - 1))
 CONTAINER_NAME="nat-${SSH_PORT}"
 
 echo -e "${BLUE}===================================${NC}"
-echo -e "${BLUE}NAT 小鸡部署${NC}"
-echo -e "${BLUE}===================================${NC}"
-echo ""
 echo "配置信息:"
-echo "  容器名称: ${CONTAINER_NAME}"
 echo "  镜像系统: ${TYPE}"
-echo -e "  CPU 限制: ${CYAN}${CPU} 核${NC}"
-echo -e "  内存限制: ${CYAN}${MEM} MB${NC}"
-echo "  SSH 端口: ${SSH_PORT}"
-echo "  NAT 端口: ${NAT_START}-${NAT_END}"
+echo "  资源配额: ${CPU}核 / ${MEM}MB"
+echo -e "  SSH 端口: ${CYAN}${SSH_PORT}${NC}"
+echo -e "  NAT 端口: ${CYAN}${NAT_START}-${NAT_END}${NC}"
 echo "  Root 密码: ${PASS}"
-echo ""
+echo -e "${BLUE}===================================${NC}"
 
 printf "确认部署? (y/n): "
 read confirm
-if [ "$confirm" != "y" ]; then exit 0; fi
+[ "$confirm" != "y" ] && exit 0
 
+# 构建/运行...
 IMAGE_NAME="${TYPE}-ssh:latest"
 if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}$"; then
     echo -e "${YELLOW}正在构建镜像...${NC}"
@@ -178,7 +140,6 @@ if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}
 fi
 
 echo -e "${YELLOW}正在启动容器...${NC}"
-# 移除静默模式，以便观察 Windows 下可能出现的错误
 if docker run -d \
     --cpus="${CPU}" \
     --memory="${MEM}M" \
@@ -192,27 +153,14 @@ if docker run -d \
     --restart unless-stopped \
     "${IMAGE_NAME}"; then
     
-    echo -e "${GREEN}✓ 容器创建指令已发送${NC}"
-    
-    # 验证端口映射
-    MAPPED_PORT=$(docker port "${CONTAINER_NAME}" 22)
-    if [ -n "$MAPPED_PORT" ]; then
-        echo -e "${GREEN}✓ 端口映射验证成功: ${MAPPED_PORT}${NC}"
-    else
-        echo -e "${RED}⚠ 警告: 端口映射似乎未生效, 请检查 Docker Desktop 状态${NC}"
-    fi
-    
-    # 验证资源
+    echo -e "${GREEN}✓ 容器创建成功${NC}"
     ACTUAL_MEM=$(docker inspect "${CONTAINER_NAME}" --format '{{.HostConfig.Memory}}')
-    if [ "$ACTUAL_MEM" != "0" ]; then
-        echo -e "${GREEN}✓ 内存限制已确认: ${MEM}MB${NC}"
-    fi
+    [ "$ACTUAL_MEM" != "0" ] && echo -e "${GREEN}✓ 资源限制已生效${NC}"
 else
-    echo -e "${RED}✗ 容器启动失败${NC}"
+    echo -e "${RED}✗ 启动失败${NC}"
     exit 1
 fi
 
-echo ""
-echo -e "${BLUE}部署完成! 🎉${NC}"
+echo -e "\n${BLUE}部署完成! 🎉${NC}"
 echo "SSH 连接: ssh root@服务器IP -p ${SSH_PORT}"
 echo "Root 密码: ${PASS}"
