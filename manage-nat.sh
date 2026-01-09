@@ -32,7 +32,7 @@ list_containers() {
     fi
     
     # 打印表头 (颜色代码单独处理，不影响宽度计算)
-    printf "${CYAN}${TABLE_FORMAT}${NC}" "序号" "名称" "状态" "IP" "SSH" "NAT"
+    printf "${CYAN}${TABLE_FORMAT}${NC}" "No." "Name" "Status" "Internal IP" "SSH Port" "NAT Ports"
     echo "---------------------------------------------------------------------------"
     
     local index=1
