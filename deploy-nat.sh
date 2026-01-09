@@ -1,8 +1,8 @@
 #!/bin/bash
-# NAT 小鸡自动部署脚本 (POSLX 兼容版)
-# 用法: bash deploy-nat.sh <密码> <镜像类型> [CPU核心] [内存MB]
+# NAT 小鸡自动部署脚本 (参数重构版)
+# 用法: bash deploy-nat.sh -t <镜像类型> [-p <密码>] [-c <CPU核心>] [-m <内存MB>]
 
-# 强制使用 bash 运行
+# 自动提升至 Bash 运行
 if [ -z "$BASH_VERSION" ]; then
     exec bash "$0" "$@"
 fi
@@ -17,40 +17,75 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# 配置
+# 默认配置
 SSH_SEARCH_START=10000
 NAT_SEARCH_START=20000
 NAT_PORT_COUNT=100
+DEFAULT_CPU=1
 
-# 检查基础参数
-if [ $# -lt 2 ]; then
-    echo -e "${RED}错误: 参数不足${NC}"
+# 帮助信息
+show_help() {
+    echo -e "${BLUE}NAT 小鸡部署工具${NC}"
     echo ""
-    echo "用法: $0 <密码> <镜像类型> [CPU核心] [内存MB]"
-    echo "示例: $0 MyPass123 debian 0.5 512"
+    echo "用法: $0 -t <debian|alpine> [选项]"
+    echo ""
+    echo "选项:"
+    echo "  -t  镜像类型 (必填: debian 或 alpine)"
+    echo "  -p  Root 密码 (可选, 留空则随机生成 8-10 位)"
+    echo "  -c  CPU 核心限制 (可选, 默认: 1)"
+    echo "  -m  内存限制 MB (可选, Debian 默认: 512, Alpine 默认: 128)"
+    echo "  -h  显示此帮助"
+    echo ""
+    echo "示例:"
+    echo "  $0 -t debian -p MyPass123"
+    echo "  $0 -t alpine -c 0.5 -m 256"
+}
+
+# 解析参数
+TYPE=""
+PASS=""
+CPU=$DEFAULT_CPU
+MEM=""
+
+while getopts "t:p:c:m:h" opt; do
+    case $opt in
+        t) TYPE=$OPTARG ;;
+        p) PASS=$OPTARG ;;
+        c) CPU=$OPTARG ;;
+        m) MEM=$OPTARG ;;
+        h) show_help; exit 0 ;;
+        *) show_help; exit 1 ;;
+    esac
+done
+
+if [ -z "$TYPE" ]; then
+    echo -e "${RED}错误: 必须使用 -t 指定镜像类型${NC}"
+    show_help
     exit 1
 fi
 
-PASSWORD="$1"
-IMAGE_TYPE="$2"
-CPU_LIMIT="${3:-0.5}"
-
-# 设置各镜像默认最小内存
-if [ "$IMAGE_TYPE" = "debian" ]; then
+# 处理默认内存
+if [ "$TYPE" = "debian" ]; then
     MIN_MEM=512
-elif [ "$IMAGE_TYPE" = "alpine" ]; then
+elif [ "$TYPE" = "alpine" ]; then
     MIN_MEM=128
 else
-    echo -e "${RED}错误: 不支持的镜像类型 $IMAGE_TYPE${NC}"
+    echo -e "${RED}错误: 不支持的类型 $TYPE${NC}"
     exit 1
 fi
 
-MEM_LIMIT="${4:-$MIN_MEM}"
+if [ -z "$MEM" ]; then
+    MEM=$MIN_MEM
+elif [ "$MEM" -lt "$MIN_MEM" ]; then
+    echo -e "${YELLOW}警告: $TYPE 最小内存为 ${MIN_MEM}MB，已自动调整${NC}"
+    MEM=$MIN_MEM
+fi
 
-# 校验内存是否低于最小值
-if [ "$MEM_LIMIT" -lt "$MIN_MEM" ]; then
-    echo -e "${YELLOW}警告: $IMAGE_TYPE 建议内存不低于 ${MIN_MEM}MB，已自动调整。${NC}"
-    MEM_LIMIT=$MIN_MEM
+# 处理密码
+if [ -z "$PASS" ]; then
+    LEN=$((8 + RANDOM % 3))
+    PASS=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c $LEN)
+    echo -e "${YELLOW}提示: 未指定密码，已生成随机密码: ${CYAN}$PASS${NC}"
 fi
 
 # 函数: 检查端口是否被占用
@@ -97,7 +132,7 @@ SSH_PORT=$(find_free_ssh_port)
 NAT_START=$(find_free_nat_block)
 
 if [ "$SSH_PORT" = "FAILED" ] || [ "$NAT_START" = "FAILED" ]; then
-    echo -e "${RED}错误: 无法找到合适的可用端口!${NC}"
+    echo -e "${RED}错误: 端口不足!${NC}"
     exit 1
 fi
 
@@ -108,36 +143,34 @@ echo -e "${BLUE}===================================${NC}"
 echo -e "${BLUE}NAT 小鸡部署${NC}"
 echo -e "${BLUE}===================================${NC}"
 echo ""
-echo "配置详情:"
+echo "配置信息:"
 echo "  容器名称: ${CONTAINER_NAME}"
-echo "  镜像类型: ${IMAGE_TYPE}"
-echo -e "  CPU 限制: ${CYAN}${CPU_LIMIT} 核${NC}"
-echo -e "  内存限制: ${CYAN}${MEM_LIMIT} MB${NC}"
+echo "  镜像系统: ${TYPE}"
+echo -e "  CPU 限制: ${CYAN}${CPU} 核${NC}"
+echo -e "  内存限制: ${CYAN}${MEM} MB${NC}"
 echo "  SSH 端口: ${SSH_PORT}"
 echo "  NAT 端口: ${NAT_START}-${NAT_END}"
-echo "  Root 密码: ${PASSWORD}"
+echo "  Root 密码: ${PASS}"
 echo ""
 
-# 确认部署
 printf "确认部署? (y/n): "
 read confirm
 if [ "$confirm" != "y" ]; then exit 0; fi
 
-# 检查镜像
-IMAGE_NAME="${IMAGE_TYPE}-ssh:latest"
+IMAGE_NAME="${TYPE}-ssh:latest"
 if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}$"; then
     echo -e "${YELLOW}正在构建镜像...${NC}"
-    docker build -t "${IMAGE_NAME}" "./${IMAGE_TYPE}"
+    docker build -t "${IMAGE_NAME}" "./${TYPE}"
 fi
 
-echo -e "${YELLOW}正在启动容器并应用限制...${NC}"
+echo -e "${YELLOW}正在启动容器...${NC}"
 if docker run -d \
-    --cpus="${CPU_LIMIT}" \
-    --memory="${MEM_LIMIT}M" \
-    --memory-swap="${MEM_LIMIT}M" \
+    --cpus="${CPU}" \
+    --memory="${MEM}M" \
+    --memory-swap="${MEM}M" \
     -p "${SSH_PORT}:22" \
     -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}" \
-    -e ROOT_PASSWORD="${PASSWORD}" \
+    -e ROOT_PASSWORD="${PASS}" \
     -e TZ=Asia/Shanghai \
     --name "${CONTAINER_NAME}" \
     --hostname "${CONTAINER_NAME}" \
@@ -145,9 +178,10 @@ if docker run -d \
     "${IMAGE_NAME}" > /dev/null 2>&1; then
     
     echo -e "${GREEN}✓ 容器创建成功${NC}"
+    # 验证资源
     ACTUAL_MEM=$(docker inspect "${CONTAINER_NAME}" --format '{{.HostConfig.Memory}}')
     if [ "$ACTUAL_MEM" != "0" ]; then
-        echo -e "${GREEN}✓ 内存限制已确认: ${MEM_LIMIT}MB${NC}"
+        echo -e "${GREEN}✓ 内存限制已确认: ${MEM}MB${NC}"
     fi
 else
     echo -e "${RED}✗ 容器创建失败${NC}"
@@ -157,3 +191,4 @@ fi
 echo ""
 echo -e "${BLUE}部署完成! 🎉${NC}"
 echo "SSH 连接: ssh root@服务器IP -p ${SSH_PORT}"
+echo "Root 密码: ${PASS}"
