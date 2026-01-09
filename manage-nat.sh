@@ -27,7 +27,8 @@ list_containers() {
         return 1
     fi
     
-    printf "${CYAN}%-6s %-14s %-10s %-18s %-10s %-15s${NC}\n" "No." "Name" "Status" "Internal IP" "SSH Port" "NAT Ports"
+    # 表头
+    printf "%-6s %-15s %-12s %-18s %-12s %-15s\n" "No." "Name" "Status" "Internal IP" "SSH Port" "NAT Ports"
     echo "--------------------------------------------------------------------------------"
     
     local index=1
@@ -46,15 +47,18 @@ list_containers() {
         nat_start=$((20000 + ip_index * 10))
         nat_end=$((nat_start + 9))
         
-        # 状态显示（英文）
+        # 状态显示（纯文本，不带颜色）
         if [[ "$status" == *"Up"* ]]; then
-            status_text="${GREEN}Running${NC}"
+            status_plain="Running"
+            status_color="${GREEN}"
         else
-            status_text="${RED}Stopped${NC}"
+            status_plain="Stopped"
+            status_color="${RED}"
         fi
         
-        printf "${MAGENTA}[%-3s]${NC} %-14s %-10b%-8s %-18s %-10s %-15s\n" \
-            "$index" "$name" "$status_text" "" "$container_ip" "$ssh_port" "${nat_start}-${nat_end}"
+        # 输出行
+        printf "${MAGENTA}[%-3s]${NC} %-15s ${status_color}%-12s${NC} %-18s %-12s %-15s\n" \
+            "$index" "$name" "$status_plain" "$container_ip" "$ssh_port" "${nat_start}-${nat_end}"
         
         # 保存容器名称供后续选择
         eval "CONTAINER_${index}=$name"
