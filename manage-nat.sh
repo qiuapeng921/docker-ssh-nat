@@ -154,7 +154,9 @@ show_menu() {
 
 # Select container
 select_container() {
-    printf "Enter container number [1-${TOTAL_COUNT}]: "
+    echo ""
+    echo -e "${YELLOW}>>> Please select a container from the list above <<<${NC}"
+    printf "${CYAN}Enter container number [1-${TOTAL_COUNT}]: ${NC}"
     read choice
     
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$TOTAL_COUNT" ]; then
