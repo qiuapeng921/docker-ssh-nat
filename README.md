@@ -32,13 +32,19 @@ chmod +x deploy-nat.sh
 > 脚本 `deploy-nat.sh` 会自动检测本地是否有镜像，如果没有会自动触发构建。
 
 ### 2. 启动小鸡
+
+#### 方法 A: 本地执行 (推荐)
 ```bash
 # 用法: ./deploy-nat.sh -t <镜像类型> [选项]
 # 示例: 启动一个密码为 123456 的 Debian 小鸡
 ./deploy-nat.sh -t debian -p 123456
+```
 
-# 示例: 启动一个随机密码、0.5核、256MB 的 Alpine 小鸡
-./deploy-nat.sh -t alpine -c 0.5 -m 256
+#### 方法 B: 远程一键执行 (不需下载)
+```bash
+# 用法: curl -sSL <URL> | bash -s -- <选项>
+# 示例: 启动一个随机密码的 Alpine 小鸡
+curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/master/deploy-nat.sh | bash -s -- -t alpine
 ```
 
 **参数说明:**
