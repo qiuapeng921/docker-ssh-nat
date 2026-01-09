@@ -6,108 +6,59 @@
 
 - ✅ **双版本支持**: 提供 Debian (bookworm-slim) 和 Alpine Linux 两个版本
 - ✅ **常用工具箱**: 内置 30+ 工具 (curl, wget, ping, telnet, traceroute, dig, vim, htop, iotop, lsof, zip, tree 等)
-- ✅ **灵活认证**: 支持自定义 root 密码或自动生成随机密码(8-10位)
+- ✅ **灵活认证**: 支持自定义 root 密码或自动生成随机密码
 - ✅ **精美 Banner**: 登录时显示系统信息和命令速查
 - ✅ **NAT 优化**: 专为端口段映射场景优化,主机与容器端口完美对应
 
-## 🚀 NAT 小鸡一键部署
+## 🚀 一键管理脚本 (nat.sh)
 
-使用提供的 `deploy-nat.sh` 脚本可以快速创建 NAT 小鸡容器。
+无需下载源码，直接复制下方命令即可使用：
 
-### 1. 准备工作
+### 1. 交互式菜单 (推荐)
+进入图形化菜单，支持新建容器、管理列表、启动/停止、查看日志等操作。
+
 ```bash
-# 获取源码
-git clone https://github.com/qiuapeng921/docker-ssh-nat.git
-cd docker-ssh-nat
-
-# 赋予权限
-chmod +x deploy-nat.sh
+bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/master/nat.sh)
 ```
 
-**镜像仓库:**
-本项目镜像已托管至 GitHub Container Registry (GHCR):
-- Debian: `ghcr.io/qiuapeng921/docker-ssh-nat-debian:latest`
-- Alpine: `ghcr.io/qiuapeng921/docker-ssh-nat-alpine:latest`
+### 2. 命令行自动部署 (CLI)
+适合批量开通或自动化场景。
 
-> 脚本 `deploy-nat.sh` 会自动检测本地是否有镜像，如果没有会自动触发构建。
-
-### 2. 启动小鸡
-
-#### 方法 A: 本地执行 (推荐)
 ```bash
-# 用法: ./deploy-nat.sh -t <镜像类型> [选项]
+# 用法: bash <(curl ...) -t <镜像类型> [选项]
+
 # 示例: 启动一个密码为 123456 的 Debian 小鸡
-./deploy-nat.sh -t debian -p 123456
-```
-
-#### 方法 B: 远程一键执行 (不需下载)
-```bash
-# 用法: bash <(curl -sSL <URL>) <选项>
-# 示例: 启动一个随机密码的 Alpine 小鸡
-bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/master/deploy-nat.sh) -t alpine
+bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/master/nat.sh) -t debian -p 123456
 ```
 
 **参数说明:**
 - `-t`: 镜像类型 (`debian` 或 `alpine`)，**必填**。
 - `-p`: root 密码，如果不填则自动生成 **8-10 位**随机密码。
-- `-c`: CPU 限制，默认位 `1` 核。
+- `-c`: CPU 限制，默认 `1` 核。
 - `-m`: 内存限制 (MB)，Debian 默认 `512`，Alpine 默认 `128`。
 
-**自动化逻辑 (IP 递增分配):**
-- **内网 IP**: 自动从 `192.168.10.2` 开始递增分配（`.1` 预留给网管）。
+---
+
+## ⚙️ 自动化逻辑
+- **内网 IP**: 自动从 `192.168.10.2` 开始递增分配（`.1` 预留给网关）。
 - **SSH 端口**: `10000 + IP最后一位`（如 IP `.2` -> 端口 `10002`）。
 - **NAT 端口**: `20000 + IP最后一位 × 10` 开始的 **10 个端口**。
   - 例如：IP `192.168.10.2` -> NAT 端口 `20020-20029`
-  - 例如：IP `192.168.10.3` -> NAT 端口 `20030-20039`
 
-## 🛠️ 管理与使用
-
-### 交互式管理 (推荐)
-使用 `manage-nat.sh` 脚本可以方便地管理所有 NAT 容器：
-
-```bash
-# 本地执行
-bash manage-nat.sh
-
-# 远程一键执行 (不需下载)
-bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/master/manage-nat.sh)
-```
-
-**功能包括:**
-- 📋 列表显示所有容器（状态、IP、端口）
-- ▶️ 启动/停止/重启容器
-- 🗑️ 删除容器
-- 📝 查看日志
-
-**使用流程:**
-1. 运行脚本后会显示所有容器列表
-2. 输入操作选项（1-6）并回车
-3. 输入要操作的容器序号并回车
-4. 确认操作（删除时需要二次确认）
-
-> 注意：脚本只显示符合规范的容器（如 `nat-debian-2`），旧版本非标准命名的容器可能不会显示。
-
-### 连接容器
-- **SSH 登录**: `ssh root@<服务器IP> -p <脚本输出的端口>`
-- **容器命名**: `nat-debian-2`, `nat-alpine-3` ... (格式: `nat-[系统]-序号`)
-
-### 常用管理命令
+## 🛠️ 常用管理命令
+如果你不想用脚本，也可以直接用 Docker 命令：
 ```bash
 # 查看小鸡状态
 docker ps | grep nat-
 
 # 查看小鸡日志(包含密码信息)
-docker logs nat-1
+docker logs nat-debian-2
 
 # 停止并删除小鸡
-docker rm -f nat-1
+docker rm -f nat-debian-2
 ```
 
-## 🌐 端口映射逻辑
-- 主机端口与容器端口**完全一致**。
-- 如果你指定端口范围 `10000-10100`,则在容器内部运行的服务也必须监听在 `10000-10100` 之间的端口才能通过外网访问。
-
-## 📦 包含的常用命令
+## 📦 包含的常用工具
 - **网络**: `ping`, `telnet`, `traceroute`, `dig`, `curl`, `wget`, `ifconfig`, `ip`, `netstat`
 - **监控**: `htop`, `iotop`, `lsof`, `ps`
 - **编辑**: `vim`
