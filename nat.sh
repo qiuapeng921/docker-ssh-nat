@@ -84,7 +84,7 @@ deploy_container() {
     local CONTAINER_IP="${IP_PREFIX}.${IP_INDEX}"
     local SSH_PORT=$((10000 + IP_INDEX))
     local NAT_START=$((20000 + IP_INDEX * 10))
-    local NAT_END=$((NAT_START + 9))
+    local NAT_END=$((NAT_START + 19))
     local CONTAINER_NAME="nat-${TYPE}-${IP_INDEX}"
 
     # 检查重名 (理论上 get_next_ip_index 已经避开了，但双重保险)
