@@ -53,8 +53,8 @@ list_containers() {
             status_text="${RED}Stopped${NC}"
         fi
         
-        printf "${MAGENTA}[%-3s]${NC} %-14s %-18b %-18s %-10s %-15s\n" \
-            "$index" "$name" "$status_text" "$container_ip" "$ssh_port" "${nat_start}-${nat_end}"
+        printf "${MAGENTA}[%-3s]${NC} %-14s %-10b%-8s %-18s %-10s %-15s\n" \
+            "$index" "$name" "$status_text" "" "$container_ip" "$ssh_port" "${nat_start}-${nat_end}"
         
         # 保存容器名称供后续选择
         eval "CONTAINER_${index}=$name"
@@ -194,31 +194,31 @@ main() {
         
         case $option in
             1)
-                echo ""
+                clear
                 list_containers
                 container=$(select_container)
                 [ -n "$container" ] && start_container "$container"
                 ;;
             2)
-                echo ""
+                clear
                 list_containers
                 container=$(select_container)
                 [ -n "$container" ] && stop_container "$container"
                 ;;
             3)
-                echo ""
+                clear
                 list_containers
                 container=$(select_container)
                 [ -n "$container" ] && restart_container "$container"
                 ;;
             4)
-                echo ""
+                clear
                 list_containers
                 container=$(select_container)
                 [ -n "$container" ] && delete_container "$container"
                 ;;
             5)
-                echo ""
+                clear
                 list_containers
                 container=$(select_container)
                 [ -n "$container" ] && view_logs "$container"
