@@ -126,9 +126,11 @@ if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}
 fi
 
 echo -e "${YELLOW}正在启动容器并应用资源限制...${NC}"
+# 尝试启动容器并应用资源限制
 if docker run -d \
     --cpus="${CPU_LIMIT}" \
-    --memory="${MEM_LIMIT}m" \
+    --memory="${MEM_LIMIT}M" \
+    --memory-swap="${MEM_LIMIT}M" \
     -p "${SSH_PORT}:22" \
     -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}" \
     -e ROOT_PASSWORD="${PASSWORD}" \
@@ -137,9 +139,20 @@ if docker run -d \
     --hostname "${CONTAINER_NAME}" \
     --restart unless-stopped \
     ${IMAGE_NAME} > /dev/null 2>&1; then
+    
+    # 验证资源限制是否生效
+    ACTUAL_MEM=$(docker inspect ${CONTAINER_NAME} --format '{{.HostConfig.Memory}}')
+    ACTUAL_CPU=$(docker inspect ${CONTAINER_NAME} --format '{{.HostConfig.NanoCpus}}')
+    
     echo -e "${GREEN}✓ 容器创建成功${NC}"
+    if [ "$ACTUAL_MEM" != "0" ]; then
+        echo -e "${GREEN}✓ 内存限制已确认: ${MEM_LIMIT}MB${NC}"
+    else
+        echo -e "${RED}⚠ 内存限制未能生效 (当前为无限)${NC}"
+    fi
 else
-    echo -e "${RED}✗ 容器创建失败，请检查 Docker 资源限制设置${NC}"
+    echo -e "${RED}✗ 容器创建失败${NC}"
+    echo "这通常是由于宿主机不支持 cgroups 限制或内存不足导致的。"
     exit 1
 fi
 
