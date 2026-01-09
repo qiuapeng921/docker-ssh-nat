@@ -20,7 +20,7 @@ list_containers() {
     echo -e "${BLUE}===================================${NC}"
     
     # 获取所有 nat- 开头的容器
-    CONTAINERS=$(docker ps -a --filter "name=^nat-" --format "{{.Names}}\t{{.Status}}\t{{.Ports}}" | sort -V)
+    CONTAINERS=$(docker ps -a --filter "name=^nat-" --format "{{.Names}}\t{{.Status}}" | sort -V)
     
     if [ -z "$CONTAINERS" ]; then
         echo -e "${YELLOW}未发现任何 NAT 容器${NC}"
@@ -31,9 +31,16 @@ list_containers() {
     echo "----------------------------------------------------------------"
     
     local index=1
-    while IFS=$'\t' read -r name status ports; do
-        # 提取 IP 序号
+    while IFS=$'\t' read -r name status; do
+        # 提取 IP 序号（只处理 nat-数字 格式的容器）
         ip_index=$(echo "$name" | sed 's/nat-//')
+        
+        # 验证是否为1-254的纯数字
+        if ! [[ "$ip_index" =~ ^[0-9]+$ ]] || [ "$ip_index" -lt 1 ] || [ "$ip_index" -gt 254 ]; then
+            # 跳过非标准命名的容器
+            continue
+        fi
+        
         container_ip="192.168.10.${ip_index}"
         ssh_port=$((10000 + ip_index))
         nat_start=$((20000 + ip_index * 10))
@@ -55,6 +62,12 @@ list_containers() {
     done <<< "$CONTAINERS"
     
     TOTAL_COUNT=$((index - 1))
+    
+    if [ "$TOTAL_COUNT" -eq 0 ]; then
+        echo -e "${YELLOW}未发现符合规范的 NAT 容器 (nat-1 ~ nat-254)${NC}"
+        return 1
+    fi
+    
     echo "----------------------------------------------------------------"
     echo -e "共 ${CYAN}${TOTAL_COUNT}${NC} 个容器"
     echo ""
