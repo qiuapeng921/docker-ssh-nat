@@ -108,7 +108,7 @@ CONTAINER_IP="${IP_PREFIX}.${IP_INDEX}"
 SSH_PORT=$((10000 + IP_INDEX))
 NAT_START=$((20000 + IP_INDEX * 10))
 NAT_END=$((NAT_START + 9))
-CONTAINER_NAME="nat-${IP_INDEX}"
+CONTAINER_NAME="nat-${TYPE}-${IP_INDEX}"
 
 # 检查容器名称是否已存在
 if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
