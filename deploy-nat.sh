@@ -27,7 +27,7 @@ IP_PREFIX="192.168.10"
 show_help() {
     echo -e "${BLUE}NAT 小鸡部署工具 (IP递增版)${NC}"
     echo ""
-    echo "用法: $0 -t <debian|alpine> [选项]"
+    echo "用法: $0 -t <debian|ubuntu|alpine|centos> [选项]"
     echo ""
     echo "选项:"
     echo "  -t  镜像类型 (debian/alpine)"
