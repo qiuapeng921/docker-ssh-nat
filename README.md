@@ -66,7 +66,11 @@ bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/ma
 使用 `manage-nat.sh` 脚本可以方便地管理所有 NAT 容器：
 
 ```bash
+# 本地执行
 bash manage-nat.sh
+
+# 远程一键执行 (不需下载)
+bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/master/manage-nat.sh)
 ```
 
 **功能包括:**
