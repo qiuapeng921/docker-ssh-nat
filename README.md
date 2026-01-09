@@ -42,9 +42,9 @@ chmod +x deploy-nat.sh
 
 #### 方法 B: 远程一键执行 (不需下载)
 ```bash
-# 用法: curl -sSL <URL> | bash -s -- <选项>
+# 用法: bash <(curl -sSL <URL>) <选项>
 # 示例: 启动一个随机密码的 Alpine 小鸡
-curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/master/deploy-nat.sh | bash -s -- -t alpine
+bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/master/deploy-nat.sh) -t alpine
 ```
 
 **参数说明:**
