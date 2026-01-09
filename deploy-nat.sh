@@ -17,6 +17,10 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# Windows 环境适配: 禁用 Git Bash 的路径转换(防止端口冒号被误转)
+export MSYS_NO_PATHCONV=1
+export COMPOSE_CONVERT_WINDOWS_PATHS=1
+
 # 默认配置
 SSH_SEARCH_START=10000
 NAT_SEARCH_START=20000
@@ -174,6 +178,7 @@ if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}
 fi
 
 echo -e "${YELLOW}正在启动容器...${NC}"
+# 移除静默模式，以便观察 Windows 下可能出现的错误
 if docker run -d \
     --cpus="${CPU}" \
     --memory="${MEM}M" \
@@ -185,16 +190,25 @@ if docker run -d \
     --name "${CONTAINER_NAME}" \
     --hostname "${CONTAINER_NAME}" \
     --restart unless-stopped \
-    "${IMAGE_NAME}" > /dev/null 2>&1; then
+    "${IMAGE_NAME}"; then
     
-    echo -e "${GREEN}✓ 容器创建成功${NC}"
+    echo -e "${GREEN}✓ 容器创建指令已发送${NC}"
+    
+    # 验证端口映射
+    MAPPED_PORT=$(docker port "${CONTAINER_NAME}" 22)
+    if [ -n "$MAPPED_PORT" ]; then
+        echo -e "${GREEN}✓ 端口映射验证成功: ${MAPPED_PORT}${NC}"
+    else
+        echo -e "${RED}⚠ 警告: 端口映射似乎未生效, 请检查 Docker Desktop 状态${NC}"
+    fi
+    
     # 验证资源
     ACTUAL_MEM=$(docker inspect "${CONTAINER_NAME}" --format '{{.HostConfig.Memory}}')
     if [ "$ACTUAL_MEM" != "0" ]; then
         echo -e "${GREEN}✓ 内存限制已确认: ${MEM}MB${NC}"
     fi
 else
-    echo -e "${RED}✗ 容器创建失败${NC}"
+    echo -e "${RED}✗ 容器启动失败${NC}"
     exit 1
 fi
 
