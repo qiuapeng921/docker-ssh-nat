@@ -77,7 +77,7 @@ for item in $OCCUPIED_PORTS $SYSTEM_PORTS; do
     fi
 done
 
-# 2. 提取所有已存在的容器名称
+# 2. 提取所有已存在的容器名称（包括已停止的）
 OCCUPIED_NAMES=$(docker ps -a --format '{{.Names}}')
 
 ALL_OCCUPIED_PORTS=" $EXPANDED "
@@ -86,10 +86,17 @@ ALL_OCCUPIED_NAMES=" $OCCUPIED_NAMES "
 is_free() {
     local port=$1
     local name="nat-$1"
-    # 检查端口
-    [[ "$ALL_OCCUPIED_PORTS" == *" $port "* ]] && return 1
-    # 检查名称
-    [[ "$ALL_OCCUPIED_NAMES" == *" $name "* ]] && return 1
+    
+    # 检查端口是否被占用
+    if [[ "$ALL_OCCUPIED_PORTS" == *" $port "* ]]; then
+        return 1
+    fi
+    
+    # 检查容器名称是否已存在（使用 grep 精确匹配）
+    if echo "$OCCUPIED_NAMES" | grep -qx "$name"; then
+        return 1
+    fi
+    
     return 0
 }
 
