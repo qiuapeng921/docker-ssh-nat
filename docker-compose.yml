@@ -21,6 +21,11 @@ services:
       # 数据持久化
       - ./data:/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
     networks:
       - ssh-network
 
@@ -44,6 +49,11 @@ services:
       # 数据持久化
       - ./data:/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 128M
     networks:
       - ssh-network
 
