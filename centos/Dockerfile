@@ -24,7 +24,7 @@ RUN dnf -y update && dnf -y install \
 # CentOS 需要生成 SSH 主机密钥，否则启动会报错
 RUN ssh-keygen -A
 
-RUN   sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 RUN sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config
 RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
@@ -38,7 +38,7 @@ COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 22
-EXPOSE 10000-10100
 
 ENTRYPOINT ["docker-entrypoint.sh"]
+
 CMD ["/usr/sbin/sshd", "-D"]

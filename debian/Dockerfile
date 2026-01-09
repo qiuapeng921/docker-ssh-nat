@@ -60,9 +60,6 @@ COPY banner.txt /etc/motd
 # 暴露 SSH 端口
 EXPOSE 22
 
-# NAT 端口范围在运行时通过 -p 参数指定
-# 例如: -p 10000-10100:10000-10100
-
 # 启动脚本
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
