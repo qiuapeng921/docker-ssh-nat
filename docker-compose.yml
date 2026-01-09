@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Debian 版本
+  debian-ssh:
+    build:
+      context: ./debian
+      dockerfile: Dockerfile
+    container_name: debian-ssh
+    hostname: debian-ssh
+    ports:
+      - "2222:22"
+      # NAT 端口范围映射(可根据需要调整)
+      - "10000-10100:10000-10100"
+    environment:
+      # 设置 root 密码(请修改为强密码)
+      - ROOT_PASSWORD=ChangeMe123!
+      # 时区设置
+      - TZ=Asia/Shanghai
+    volumes:
+      # 数据持久化
+      - ./data:/data
+    restart: unless-stopped
+    networks:
+      - ssh-network
+
+  # Alpine 版本
+  alpine-ssh:
+    build:
+      context: ./alpine
+      dockerfile: Dockerfile
+    container_name: alpine-ssh
+    hostname: alpine-ssh
+    ports:
+      - "2223:22"
+      # NAT 端口范围映射(可根据需要调整)
+      - "20000-20100:10000-10100"
+    environment:
+      # 设置 root 密码(请修改为强密码)
+      - ROOT_PASSWORD=ChangeMe123!
+      # 时区设置
+      - TZ=Asia/Shanghai
+    volumes:
+      # 数据持久化
+      - ./data:/data
+    restart: unless-stopped
+    networks:
+      - ssh-network
+
+networks:
+  ssh-network:
+    driver: bridge
