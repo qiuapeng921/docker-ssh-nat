@@ -171,32 +171,31 @@ docker run -d \
 # 赋予执行权限
 chmod +x deploy-nat.sh
 
-# 用法: ./deploy-nat.sh <账号名> <端口范围> <镜像类型>
-./deploy-nat.sh user1 10000-10100 debian
-./deploy-nat.sh vps001 20000-20050 alpine
-./deploy-nat.sh test 30000-30100 debian
+# 用法: ./deploy-nat.sh <密码> <端口范围> <镜像类型>
+./deploy-nat.sh MyPass123 10000-10100 debian
+./deploy-nat.sh SecureP@ss 20000-20050 alpine
+./deploy-nat.sh Test1234 30000-30100 debian
 ```
 
 **参数说明:**
-- `账号名` - 用户标识,会作为容器名的一部分 (例如: user1, vps001)
+- `密码` - root 用户密码 (例如: MyPass123, SecureP@ss)
 - `端口范围` - NAT 端口范围 (例如: 10000-10100, 20000-20050)
 - `镜像类型` - debian 或 alpine
 
 **部署示例:**
 ```bash
-$ ./deploy-nat.sh user1 10000-10100 debian
+$ ./deploy-nat.sh MyPass123 10000-10100 debian
 
 ===================================
 NAT 小鸡部署
 ===================================
 
 部署信息:
-  账号名称: user1
-  容器名称: nat-user1
+  容器名称: nat-10000-10100
   镜像类型: debian
   SSH 端口: 2222
   NAT 端口: 10000-10100 (101 个端口)
-  Root 密码: xK9mP2nQ4vR7sT
+  Root 密码: MyPass123
 
 确认部署? (y/n): y
 
@@ -204,19 +203,19 @@ NAT 小鸡部署
 ✓ 容器运行正常
 
 连接信息:
-  账号名称: user1
-  容器名称: nat-user1
+  容器名称: nat-10000-10100
   SSH 连接: ssh root@<服务器IP> -p 2222
-  Root 密码: xK9mP2nQ4vR7sT
+  Root 密码: MyPass123
   NAT 端口: 10000-10100 (101 个端口)
 ```
 
 **特性:**
 - ✅ 自动查找可用的 SSH 端口
-- ✅ 自动生成随机密码
+- ✅ 使用指定的密码
 - ✅ 自动构建镜像(如果不存在)
 - ✅ 检测容器名冲突
 - ✅ 验证端口范围有效性
+- ✅ 容器名基于端口范围,避免冲突
 
 ## 环境变量
 

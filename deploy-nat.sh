@@ -1,7 +1,7 @@
 #!/bin/bash
 # NAT 小鸡快速部署脚本
-# 用法: ./deploy-nat.sh <账号名> <端口范围> <镜像类型>
-# 示例: ./deploy-nat.sh user1 10000-10100 debian
+# 用法: ./deploy-nat.sh <密码> <端口范围> <镜像类型>
+# 示例: ./deploy-nat.sh MyPass123 10000-10100 debian
 
 set -e
 
@@ -17,22 +17,22 @@ NC='\033[0m'
 if [ $# -ne 3 ]; then
     echo -e "${RED}错误: 参数不正确${NC}"
     echo ""
-    echo "用法: $0 <账号名> <端口范围> <镜像类型>"
+    echo "用法: $0 <密码> <端口范围> <镜像类型>"
     echo ""
     echo "参数说明:"
-    echo "  账号名      - 容器名称,例如: user1, vps001"
+    echo "  密码        - root 密码,例如: MyPass123, SecureP@ss"
     echo "  端口范围    - NAT端口范围,例如: 10000-10100, 20000-20050"
     echo "  镜像类型    - debian 或 alpine"
     echo ""
     echo "示例:"
-    echo "  $0 user1 10000-10100 debian"
-    echo "  $0 vps001 20000-20050 alpine"
+    echo "  $0 MyPass123 10000-10100 debian"
+    echo "  $0 SecureP@ss 20000-20050 alpine"
     echo ""
     exit 1
 fi
 
 # 获取参数
-USERNAME=$1
+PASSWORD=$1
 PORT_RANGE=$2
 IMAGE_TYPE=$3
 
@@ -61,8 +61,8 @@ if [[ "$IMAGE_TYPE" != "debian" && "$IMAGE_TYPE" != "alpine" ]]; then
     exit 1
 fi
 
-# 容器名称
-CONTAINER_NAME="nat-${USERNAME}"
+# 生成容器名称(基于端口范围)
+CONTAINER_NAME="nat-${PORT_START}-${PORT_END}"
 
 # 检查容器是否已存在
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
@@ -77,15 +77,11 @@ while docker ps --format '{{.Ports}}' | grep -q ":${SSH_PORT}->"; do
     SSH_PORT=$((SSH_PORT + 1))
 done
 
-# 生成随机密码
-PASSWORD=$(openssl rand -base64 12 2>/dev/null || cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 16)
-
 echo -e "${BLUE}===================================${NC}"
 echo -e "${BLUE}NAT 小鸡部署${NC}"
 echo -e "${BLUE}===================================${NC}"
 echo ""
 echo -e "${YELLOW}部署信息:${NC}"
-echo "  账号名称: ${USERNAME}"
 echo "  容器名称: ${CONTAINER_NAME}"
 echo "  镜像类型: ${IMAGE_TYPE}"
 echo "  SSH 端口: ${SSH_PORT}"
@@ -154,7 +150,6 @@ echo -e "${BLUE}部署完成! 🎉${NC}"
 echo -e "${BLUE}===================================${NC}"
 echo ""
 echo -e "${YELLOW}连接信息:${NC}"
-echo -e "  ${CYAN}账号名称:${NC} ${USERNAME}"
 echo -e "  ${CYAN}容器名称:${NC} ${CONTAINER_NAME}"
 echo -e "  ${CYAN}SSH 连接:${NC} ssh root@<服务器IP> -p ${SSH_PORT}"
 echo -e "  ${CYAN}Root 密码:${NC} ${PASSWORD}"
@@ -167,4 +162,4 @@ echo "  进入容器:     docker exec -it ${CONTAINER_NAME} bash"
 echo "  停止容器:     docker stop ${CONTAINER_NAME}"
 echo "  删除容器:     docker rm -f ${CONTAINER_NAME}"
 echo ""
-echo -e "${GREEN}请妥善保存密码!${NC}"
+echo -e "${GREEN}部署成功!${NC}"
