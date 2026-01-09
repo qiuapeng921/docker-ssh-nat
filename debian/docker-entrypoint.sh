@@ -4,7 +4,7 @@ set -e
 # 设置 root 密码(如果环境变量中有设置)
 if [ -n "$ROOT_PASSWORD" ]; then
     echo "root:$ROOT_PASSWORD" | chpasswd
-    echo "✓ 已设置 root 密码"
+    echo "✓ 已设置密码: $ROOT_PASSWORD"
 else
     # 自动生成 8-10 位随机密码
     PASSWORD_LENGTH=$((8 + RANDOM % 3))  # 随机 8-10 位

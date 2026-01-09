@@ -1,5 +1,5 @@
 #!/bin/bash
-# NAT 小鸡全自动部署脚本 (高兼容 & 健壮版)
+# NAT 小鸡全自动部署脚本 (IP 递增版)
 # 用法: bash deploy-nat.sh -t <debian|alpine> [选项]
 
 set -e
@@ -13,14 +13,19 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # 配置
-SSH_SEARCH_START=10000
-NAT_SEARCH_START=20000
-NAT_PORT_COUNT=100
 DEFAULT_CPU=1
 GHCR_PREFIX="ghcr.io/qiuapeng921/docker-ssh-nat"
 
+# 网络配置
+NETWORK_NAME="nat-network"
+NETWORK_SUBNET="192.168.10.0/24"
+IP_PREFIX="192.168.10"
+
+# 端口计算规则
+# IP 最后一位 N -> SSH端口: 10000+N, NAT端口: (20000+N*10) ~ (20000+N*10+9)
+
 show_help() {
-    echo -e "${BLUE}NAT 小鸡部署工具${NC}"
+    echo -e "${BLUE}NAT 小鸡部署工具 (IP递增版)${NC}"
     echo ""
     echo "用法: $0 -t <debian|alpine> [选项]"
     echo ""
@@ -29,6 +34,9 @@ show_help() {
     echo "  -p  Root 密码 (可选, 默认随机)"
     echo "  -c  CPU 核心限制 (默认: 1)"
     echo "  -m  内存限制 MB (Debian:512, Alpine:128)"
+    echo ""
+    echo "自动分配规则:"
+    echo "  IP 192.168.10.N -> SSH端口 10000+N, NAT端口 20000+N*10 ~ 20000+N*10+9"
     exit 0
 }
 
@@ -58,79 +66,57 @@ MEM=${MEM:-$MIN_MEM}
 # 随机密码
 [ -z "$PASS" ] && PASS=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c $((8 + RANDOM % 3)))
 
-echo -e "${YELLOW}正在快速扫描端口与容器名称...${NC}"
+# 确保自定义网络存在
+if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+    echo -e "${YELLOW}创建自定义网络: $NETWORK_NAME ($NETWORK_SUBNET)${NC}"
+    docker network create --subnet="$NETWORK_SUBNET" "$NETWORK_NAME" >/dev/null
+fi
 
-# --- 核心优化: 更健壮的资源提取 ---
-
-# 1. 提取所有已占用的端口 (兼容所有版本的终端输出)
-OCCUPIED_PORTS=$(docker ps --format '{{.Ports}}' | tr ',' '\n' | sed -n 's/.*:\([0-9-]*\)->.*/\1/p' | sort -u || echo "")
-SYSTEM_PORTS=$(netstat -tuln 2>/dev/null | awk '{print $4}' | awk -F: '{print $NF}' | grep -E '^[0-9]+$' || echo "")
-
-# 展开端口段
-EXPANDED=""
-for item in $OCCUPIED_PORTS $SYSTEM_PORTS; do
-    if [[ "$item" == *"-"* ]]; then
-        s=${item%-*}; e=${item#*-}
-        [ $((e - s)) -lt 2000 ] && EXPANDED="$EXPANDED $(seq $s $e)"
-    else
-        EXPANDED="$EXPANDED $item"
-    fi
-done
-
-# 2. 提取所有已存在的容器名称（包括已停止的）
-OCCUPIED_NAMES=$(docker ps -a --format '{{.Names}}')
-
-ALL_OCCUPIED_PORTS=" $EXPANDED "
-ALL_OCCUPIED_NAMES=" $OCCUPIED_NAMES "
-
-is_free() {
-    local port=$1
-    local name="nat-$1"
+# 获取下一个可用的 IP 序号 (1-254)
+get_next_ip_index() {
+    # 提取网络中已分配的所有 IP 的最后一位
+    USED_INDICES=$(docker network inspect "$NETWORK_NAME" --format '{{range .Containers}}{{.IPv4Address}} {{end}}' | \
+        tr ' ' '\n' | grep "^$IP_PREFIX\." | cut -d'.' -f4 | cut -d'/' -f1 | sort -n)
     
-    # 检查端口是否被占用
-    if [[ "$ALL_OCCUPIED_PORTS" == *" $port "* ]]; then
-        return 1
-    fi
+    # 从 1 开始查找第一个未使用的序号
+    for i in $(seq 1 254); do
+        if ! echo "$USED_INDICES" | grep -qx "$i"; then
+            echo "$i"
+            return 0
+        fi
+    done
     
-    # 检查容器名称是否已存在（使用 grep 精确匹配）
-    if echo "$OCCUPIED_NAMES" | grep -qx "$name"; then
-        return 1
-    fi
-    
-    return 0
+    echo ""
+    return 1
 }
 
-# 寻找 SSH 端口
-SSH_PORT=""
-for ((p=SSH_SEARCH_START; p<20000; p++)); do
-    if is_free $p; then SSH_PORT=$p; break; fi
-done
-
-# 寻找 NAT 块
-NAT_START=""
-for ((current=NAT_SEARCH_START; current<60000; current+=NAT_PORT_COUNT)); do
-    block_ok=true
-    for ((p=current; p<current+NAT_PORT_COUNT; p++)); do
-        if [[ "$ALL_OCCUPIED_PORTS" == *" $p "* ]]; then block_ok=false; break; fi
-    done
-    if [ "$block_ok" = true ]; then NAT_START=$current; break; fi
-done
-
-if [ -z "$SSH_PORT" ] || [ -z "$NAT_START" ]; then
-    echo -e "${RED}错误: 端口资源不足或名称冲突!${NC}"
+IP_INDEX=$(get_next_ip_index)
+if [ -z "$IP_INDEX" ]; then
+    echo -e "${RED}错误: 网络 IP 地址已耗尽 (1-254 全部占用)!${NC}"
     exit 1
 fi
 
-NAT_END=$((NAT_START + NAT_PORT_COUNT - 1))
-CONTAINER_NAME="nat-${SSH_PORT}"
+# 根据 IP 序号计算端口
+CONTAINER_IP="${IP_PREFIX}.${IP_INDEX}"
+SSH_PORT=$((10000 + IP_INDEX))
+NAT_START=$((20000 + IP_INDEX * 10))
+NAT_END=$((NAT_START + 9))
+CONTAINER_NAME="nat-${IP_INDEX}"
+
+# 检查容器名称是否已存在
+if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+    echo -e "${RED}错误: 容器 $CONTAINER_NAME 已存在!${NC}"
+    exit 1
+fi
 
 echo -e "${BLUE}===================================${NC}"
 echo "分配配置:"
 echo "  容器名称: ${CONTAINER_NAME}"
 echo "  镜像系统: ${TYPE}"
 echo "  资源限制: ${CPU}核 / ${MEM}MB"
+echo -e "  内网 IP: ${CYAN}${CONTAINER_IP}${NC}"
 echo -e "  SSH 端口: ${CYAN}${SSH_PORT}${NC}"
-echo -e "  NAT 端口: ${CYAN}${NAT_START}-${NAT_END}${NC}"
+echo -e "  NAT 端口: ${CYAN}${NAT_START}-${NAT_END}${NC} (10个)"
 echo "  Root 密码: ${PASS}"
 echo -e "${BLUE}===================================${NC}"
 
@@ -153,7 +139,6 @@ if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}
 fi
 
 echo -e "${YELLOW}正在启动容器...${NC}"
-# 捕获错误输出到变量
 RUN_ERR=$(docker run -d \
     --cpus="${CPU}" \
     --memory="${MEM}M" \
@@ -164,6 +149,8 @@ RUN_ERR=$(docker run -d \
     -e TZ=Asia/Shanghai \
     --name "${CONTAINER_NAME}" \
     --hostname "${CONTAINER_NAME}" \
+    --network "${NETWORK_NAME}" \
+    --ip "${CONTAINER_IP}" \
     --restart unless-stopped \
     "${IMAGE_NAME}" 2>&1) || {
     echo -e "${RED}✗ 启动失败!${NC}"
@@ -175,4 +162,5 @@ RUN_ERR=$(docker run -d \
 echo -e "${GREEN}✓ 容器创建成功${NC}"
 echo -e "\n${BLUE}部署完成! 🎉${NC}"
 echo "SSH 连接: ssh root@服务器IP -p ${SSH_PORT}"
+echo "内网 IP: ${CONTAINER_IP}"
 echo "Root 密码: ${PASS}"

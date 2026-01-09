@@ -53,16 +53,18 @@ bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/ma
 - `-c`: CPU 限制，默认位 `1` 核。
 - `-m`: 内存限制 (MB)，Debian 默认 `512`，Alpine 默认 `128`。
 
-**自动化逻辑 (10000/20000 分离):**
-- **SSH 端口**: 自动从 `10000` 段寻找首个空闲端口。
-- **NAT 端口**: 自动从 `20000` 段寻找连续的 `100` 个空闲端口。
-- **独立搜寻**: SSH 端口与 NAT 端口独立查找，互不交叉。
+**自动化逻辑 (IP 递增分配):**
+- **内网 IP**: 自动从 `192.168.10.1` 开始递增分配（最多 254 个容器）。
+- **SSH 端口**: `10000 + IP最后一位`（如 IP `.1` -> 端口 `10001`）。
+- **NAT 端口**: `20000 + IP最后一位 × 10` 开始的 **10 个端口**。
+  - 例如：IP `192.168.10.1` -> NAT 端口 `20010-20019`
+  - 例如：IP `192.168.10.2` -> NAT 端口 `20020-20029`
 
 ## 🛠️ 管理与使用
 
 ### 连接容器
 - **SSH 登录**: `ssh root@<服务器IP> -p <脚本输出的端口>`
-- **默认 SSH 端口**: 脚本会自动从 10000 开始寻找可用端口
+- **容器命名**: `nat-1`, `nat-2`, `nat-3` ... (对应 IP 最后一位)
 
 ### 常用管理命令
 ```bash
@@ -70,10 +72,10 @@ bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/ma
 docker ps | grep nat-
 
 # 查看小鸡日志(包含密码信息)
-docker logs nat-10000-10100
+docker logs nat-1
 
 # 停止并删除小鸡
-docker rm -f nat-10000-10100
+docker rm -f nat-1
 ```
 
 ## 🌐 端口映射逻辑
