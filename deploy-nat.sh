@@ -1,7 +1,11 @@
 #!/bin/bash
-# NAT 小鸡自动部署脚本 (带资源限制)
-# 用法: ./deploy-nat.sh <密码> <镜像类型> [CPU核心] [内存MB]
-# 示例: ./deploy-nat.sh MyPass123 debian 1 512
+# NAT 小鸡自动部署脚本 (POSLX 兼容版)
+# 用法: bash deploy-nat.sh <密码> <镜像类型> [CPU核心] [内存MB]
+
+# 强制使用 bash 运行
+if [ -z "$BASH_VERSION" ]; then
+    exec bash "$0" "$@"
+fi
 
 set -e
 
@@ -24,32 +28,28 @@ if [ $# -lt 2 ]; then
     echo ""
     echo "用法: $0 <密码> <镜像类型> [CPU核心] [内存MB]"
     echo "示例: $0 MyPass123 debian 0.5 512"
-    echo ""
-    echo "默认最小资源:"
-    echo "  Debian: 512MB"
-    echo "  Alpine: 128MB"
     exit 1
 fi
 
-PASSWORD=$1
-IMAGE_TYPE=$2
-CPU_LIMIT=${3:-"0.5"}  # 默认 0.5 核
+PASSWORD="$1"
+IMAGE_TYPE="$2"
+CPU_LIMIT="${3:-0.5}"
 
 # 设置各镜像默认最小内存
-if [[ "$IMAGE_TYPE" == "debian" ]]; then
+if [ "$IMAGE_TYPE" = "debian" ]; then
     MIN_MEM=512
-elif [[ "$IMAGE_TYPE" == "alpine" ]]; then
+elif [ "$IMAGE_TYPE" = "alpine" ]; then
     MIN_MEM=128
 else
     echo -e "${RED}错误: 不支持的镜像类型 $IMAGE_TYPE${NC}"
     exit 1
 fi
 
-MEM_LIMIT=${4:-$MIN_MEM}
+MEM_LIMIT="${4:-$MIN_MEM}"
 
 # 校验内存是否低于最小值
 if [ "$MEM_LIMIT" -lt "$MIN_MEM" ]; then
-    echo -e "${YELLOW}警告: $IMAGE_TYPE 建议内存不低于 ${MIN_MEM}MB，已自动调整为最小值。${NC}"
+    echo -e "${YELLOW}警告: $IMAGE_TYPE 建议内存不低于 ${MIN_MEM}MB，已自动调整。${NC}"
     MEM_LIMIT=$MIN_MEM
 fi
 
@@ -66,26 +66,30 @@ is_port_occupied() {
 # 寻找可用端口
 find_free_ssh_port() {
     local port=$SSH_SEARCH_START
-    while [ $port -lt 20000 ]; do
-        if ! is_port_occupied $port; then echo $port; return 0; fi
+    while [ "$port" -lt 20000 ]; do
+        if ! is_port_occupied "$port"; then echo "$port"; return 0; fi
         port=$((port + 1))
     done
     echo "FAILED"
-    return 1
 }
 
 find_free_nat_block() {
     local current=$NAT_SEARCH_START
-    while [ $current -lt 60000 ]; do
+    while [ "$current" -lt 60000 ]; do
         local block_ok=true
-        for ((p=current; p<(current + NAT_PORT_COUNT); p++)); do
-            if is_port_occupied $p; then block_ok=false; break; fi
+        local p=$current
+        local end=$((current + NAT_PORT_COUNT))
+        while [ "$p" -lt "$end" ]; do
+            if is_port_occupied "$p"; then
+                block_ok=false
+                break
+            fi
+            p=$((p + 1))
         done
-        if [ "$block_ok" = true ]; then echo $current; return 0; fi
+        if [ "$block_ok" = true ]; then echo "$current"; return 0; fi
         current=$((current + NAT_PORT_COUNT))
     done
     echo "FAILED"
-    return 1
 }
 
 echo -e "${YELLOW}正在搜寻可用端口资源...${NC}"
@@ -101,32 +105,32 @@ NAT_END=$((NAT_START + NAT_PORT_COUNT - 1))
 CONTAINER_NAME="nat-${SSH_PORT}"
 
 echo -e "${BLUE}===================================${NC}"
-echo -e "${BLUE}NAT 小鸡部署 (资源限额版)${NC}"
+echo -e "${BLUE}NAT 小鸡部署${NC}"
 echo -e "${BLUE}===================================${NC}"
 echo ""
-echo -e "${YELLOW}配置详情:${NC}"
+echo "配置详情:"
 echo "  容器名称: ${CONTAINER_NAME}"
 echo "  镜像类型: ${IMAGE_TYPE}"
 echo -e "  CPU 限制: ${CYAN}${CPU_LIMIT} 核${NC}"
 echo -e "  内存限制: ${CYAN}${MEM_LIMIT} MB${NC}"
-echo -e "  SSH 端口: ${SSH_PORT}"
-echo -e "  NAT 端口: ${NAT_START}-${NAT_END}"
+echo "  SSH 端口: ${SSH_PORT}"
+echo "  NAT 端口: ${NAT_START}-${NAT_END}"
 echo "  Root 密码: ${PASSWORD}"
 echo ""
 
 # 确认部署
-read -p "确认部署? (y/n): " confirm
-if [[ "$confirm" != "y" ]]; then exit 0; fi
+printf "确认部署? (y/n): "
+read confirm
+if [ "$confirm" != "y" ]; then exit 0; fi
 
 # 检查镜像
 IMAGE_NAME="${IMAGE_TYPE}-ssh:latest"
 if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}$"; then
     echo -e "${YELLOW}正在构建镜像...${NC}"
-    docker build -t ${IMAGE_NAME} ./${IMAGE_TYPE}
+    docker build -t "${IMAGE_NAME}" "./${IMAGE_TYPE}"
 fi
 
-echo -e "${YELLOW}正在启动容器并应用资源限制...${NC}"
-# 尝试启动容器并应用资源限制
+echo -e "${YELLOW}正在启动容器并应用限制...${NC}"
 if docker run -d \
     --cpus="${CPU_LIMIT}" \
     --memory="${MEM_LIMIT}M" \
@@ -138,27 +142,18 @@ if docker run -d \
     --name "${CONTAINER_NAME}" \
     --hostname "${CONTAINER_NAME}" \
     --restart unless-stopped \
-    ${IMAGE_NAME} > /dev/null 2>&1; then
-    
-    # 验证资源限制是否生效
-    ACTUAL_MEM=$(docker inspect ${CONTAINER_NAME} --format '{{.HostConfig.Memory}}')
-    ACTUAL_CPU=$(docker inspect ${CONTAINER_NAME} --format '{{.HostConfig.NanoCpus}}')
+    "${IMAGE_NAME}" > /dev/null 2>&1; then
     
     echo -e "${GREEN}✓ 容器创建成功${NC}"
+    ACTUAL_MEM=$(docker inspect "${CONTAINER_NAME}" --format '{{.HostConfig.Memory}}')
     if [ "$ACTUAL_MEM" != "0" ]; then
         echo -e "${GREEN}✓ 内存限制已确认: ${MEM_LIMIT}MB${NC}"
-    else
-        echo -e "${RED}⚠ 内存限制未能生效 (当前为无限)${NC}"
     fi
 else
     echo -e "${RED}✗ 容器创建失败${NC}"
-    echo "这通常是由于宿主机不支持 cgroups 限制或内存不足导致的。"
     exit 1
 fi
 
-sleep 2
 echo ""
-echo -e "${BLUE}连接信息:${NC}"
-echo -e "  SSH: ${CYAN}ssh root@<IP> -p ${SSH_PORT}${NC}"
-echo "  密码: ${PASSWORD}"
-echo "  NAT 端口: ${NAT_START}-${NAT_END}"
+echo -e "${BLUE}部署完成! 🎉${NC}"
+echo "SSH 连接: ssh root@服务器IP -p ${SSH_PORT}"
