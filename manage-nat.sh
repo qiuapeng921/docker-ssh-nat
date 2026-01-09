@@ -27,8 +27,8 @@ list_containers() {
         return 1
     fi
     
-    echo -e "${CYAN}序号  容器名称    状态          内网IP          SSH端口    NAT端口${NC}"
-    echo "----------------------------------------------------------------"
+    echo -e "${CYAN}序号  容器名称      状态        内网IP              SSH端口    NAT端口${NC}"
+    echo "------------------------------------------------------------------------"
     
     local index=1
     while IFS=$'\t' read -r name status; do
@@ -53,7 +53,7 @@ list_containers() {
             status_color="${RED}已停止${NC}"
         fi
         
-        printf "${MAGENTA}%-6s${NC}%-12s%-14b%-16s%-11s%s\n" \
+        printf "${MAGENTA}%-6s${NC}%-14s%-12b%-20s%-11s%s\n" \
             "[$index]" "$name" "$status_color" "$container_ip" "$ssh_port" "${nat_start}-${nat_end}"
         
         # 保存容器名称供后续选择
