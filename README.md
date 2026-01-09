@@ -4,7 +4,7 @@
 
 ## ✨ 功能特性
 
-- ✅ **多版本支持**: 提供 Debian, Ubuntu, Alpine, CentOS 四大常用系统版本
+- ✅ **双版本支持**: 提供 Debian (bookworm-slim) 和 Alpine Linux 两个版本
 - ✅ **常用工具箱**: 内置 30+ 工具 (curl, wget, ping, telnet, traceroute, dig, vim, htop, iotop, lsof, zip, tree 等)
 - ✅ **灵活认证**: 支持自定义 root 密码或自动生成随机密码(8-10位)
 - ✅ **精美 Banner**: 登录时显示系统信息和命令速查
@@ -27,9 +27,7 @@ chmod +x deploy-nat.sh
 **镜像仓库:**
 本项目镜像已托管至 GitHub Container Registry (GHCR):
 - Debian: `ghcr.io/qiuapeng921/docker-ssh-nat-debian:latest`
-- Ubuntu: `ghcr.io/qiuapeng921/docker-ssh-nat-ubuntu:latest`
 - Alpine: `ghcr.io/qiuapeng921/docker-ssh-nat-alpine:latest`
-- CentOS: `ghcr.io/qiuapeng921/docker-ssh-nat-centos:latest`
 
 > 脚本 `deploy-nat.sh` 会自动检测本地是否有镜像，如果没有会自动触发构建。
 
@@ -40,9 +38,6 @@ chmod +x deploy-nat.sh
 # 用法: ./deploy-nat.sh -t <镜像类型> [选项]
 # 示例: 启动一个密码为 123456 的 Debian 小鸡
 ./deploy-nat.sh -t debian -p 123456
-
-# 示例: 启动一个 Ubuntu 小鸡
-./deploy-nat.sh -t ubuntu
 ```
 
 #### 方法 B: 远程一键执行 (不需下载)
@@ -53,7 +48,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/qiuapeng921/docker-ssh-nat/ma
 ```
 
 **参数说明:**
-- `-t`: 镜像类型 (`debian`, `ubuntu`, `alpine`, `centos`)，**必填**。
+- `-t`: 镜像类型 (`debian` 或 `alpine`)，**必填**。
 - `-p`: root 密码，如果不填则自动生成 **8-10 位**随机密码。
 - `-c`: CPU 限制，默认位 `1` 核。
 - `-m`: 内存限制 (MB)，Debian 默认 `512`，Alpine 默认 `128`。
