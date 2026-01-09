@@ -47,15 +47,15 @@ RUN mkdir -p /var/run/sshd && \
     chmod 700 /root/.ssh && \
     # 允许 root 密码登录
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    # 启用密码认证
+    # 允许密码认证
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    # 启用 Banner
-    echo "Banner /etc/ssh/banner.txt" >> /etc/ssh/sshd_config && \
+    # 禁用原有 Banner，改用 MOTD (登录后显示)
+    sed -i 's/^Banner/#Banner/g' /etc/ssh/sshd_config && \
     # 禁用 PAM
     sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd
 
-# 复制 SSH Banner
-COPY banner.txt /etc/ssh/banner.txt
+# 设置 SSH 登录后的欢迎语 (MOTD)
+COPY banner.txt /etc/motd
 
 # 暴露 SSH 端口
 EXPOSE 22
