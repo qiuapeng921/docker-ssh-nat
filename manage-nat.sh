@@ -2,16 +2,20 @@
 # NAT 小鸡管理脚本
 # 用法: bash manage-nat.sh
 
-set -e
-
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
 NC='\033[0m'
+
+# 定义表格格式：列宽固定，确保绝对对齐
+# 序号(6) 名称(12) 状态(10) IP(16) SSH(10) NAT(15)
+TABLE_FORMAT="%-6s %-12s %-10s %-16s %-10s %-15s\n"
+
+# 全局变量，用于存储用户选择的容器名
+SELECTED_NAME=""
 
 # 显示所有 NAT 容器
 list_containers() {
@@ -27,18 +31,15 @@ list_containers() {
         return 1
     fi
     
-    # 表头
-    printf "%-6s %-15s %-12s %-18s %-12s %-15s\n" "No." "Name" "Status" "Internal IP" "SSH Port" "NAT Ports"
-    echo "--------------------------------------------------------------------------------"
+    # 打印表头 (颜色代码单独处理，不影响宽度计算)
+    printf "${CYAN}${TABLE_FORMAT}${NC}" "No." "Name" "Status" "Internal IP" "SSH Port" "NAT Ports"
+    echo "---------------------------------------------------------------------------"
     
     local index=1
     while IFS=$'\t' read -r name status; do
-        # 提取 IP 序号（只处理 nat-数字 格式的容器）
+        # 提取并验证 IP 序号
         ip_index=$(echo "$name" | sed 's/nat-//')
-        
-        # 验证是否为1-254的纯数字
         if ! [[ "$ip_index" =~ ^[0-9]+$ ]] || [ "$ip_index" -lt 1 ] || [ "$ip_index" -gt 254 ]; then
-            # 跳过非标准命名的容器
             continue
         fi
         
@@ -47,20 +48,25 @@ list_containers() {
         nat_start=$((20000 + ip_index * 10))
         nat_end=$((nat_start + 9))
         
-        # 状态显示（纯文本，不带颜色）
+        # 状态处理
         if [[ "$status" == *"Up"* ]]; then
-            status_plain="Running"
-            status_color="${GREEN}"
+            status_show="Running" # 纯文本用于对齐
+            line_color="${GREEN}" # 绿色
         else
-            status_plain="Stopped"
-            status_color="${RED}"
+            status_show="Stopped" # 纯文本用于对齐
+            line_color="${RED}"   # 红色（停止状态整行变红，更醒目）
         fi
         
-        # 输出行
-        printf "${MAGENTA}[%-3s]${NC} %-15s ${status_color}%-12s${NC} %-18s %-12s %-15s\n" \
-            "$index" "$name" "$status_plain" "$container_ip" "$ssh_port" "${nat_start}-${nat_end}"
+        # 打印数据行 (使用相同的格式变量)
+        # 注意：这里我们让整行根据状态变色，既美观又不会破坏 System 对齐
+        if [[ "$status" == *"Up"* ]]; then
+             printf "${TABLE_FORMAT}" "[$index]" "$name" "$status_show" "$container_ip" "$ssh_port" "${nat_start}-${nat_end}"
+        else
+             # 停止的容器用红色显示
+             printf "${RED}${TABLE_FORMAT}${NC}" "[$index]" "$name" "$status_show" "$container_ip" "$ssh_port" "${nat_start}-${nat_end}"
+        fi
         
-        # 保存容器名称供后续选择
+        # 保存映射关系
         eval "CONTAINER_${index}=$name"
         index=$((index + 1))
     done <<< "$CONTAINERS"
@@ -72,79 +78,88 @@ list_containers() {
         return 1
     fi
     
-    echo "--------------------------------------------------------------------------------"
+    echo "---------------------------------------------------------------------------"
     echo -e "共 ${CYAN}${TOTAL_COUNT}${NC} 个容器"
     echo ""
-    
     return 0
 }
 
-# 启动容器
-start_container() {
-    local name=$1
-    echo -e "${YELLOW}正在启动容器 ${name}...${NC}"
-    if docker start "$name" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ 容器 ${name} 已启动${NC}"
-    else
-        echo -e "${RED}✗ 启动失败${NC}"
+# 统一的选择函数
+# 直接修改全局变量 SELECTED_NAME，不再使用 echo 返回值，避免污染
+ask_for_selection() {
+    SELECTED_NAME=""
+    echo -e "${YELLOW}>>> 请从上方列表中选择一个容器 <<<${NC}"
+    printf "请输入容器序号 [1-${TOTAL_COUNT}]: "
+    read choice
+    
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$TOTAL_COUNT" ]; then
+        echo -e "${RED}错误：无效的序号！${NC}"
+        read -p "按回车键继续..."
+        return 1
     fi
+    
+    # 获取对应容器名
+    eval "SELECTED_NAME=\$CONTAINER_${choice}"
+    return 0
 }
 
-# 停止容器
-stop_container() {
-    local name=$1
-    echo -e "${YELLOW}正在停止容器 ${name}...${NC}"
-    if docker stop "$name" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ 容器 ${name} 已停止${NC}"
-    else
-        echo -e "${RED}✗ 停止失败${NC}"
-    fi
+# 操作函数
+do_start() {
+    ask_for_selection || return
+    echo -e "${YELLOW}正在启动 ${SELECTED_NAME} ...${NC}"
+    docker start "$SELECTED_NAME" >/dev/null && echo -e "${GREEN}成功${NC}" || echo -e "${RED}失败${NC}"
+    read -p "按回车键继续..."
 }
 
-# 重启容器
-restart_container() {
-    local name=$1
-    echo -e "${YELLOW}正在重启容器 ${name}...${NC}"
-    if docker restart "$name" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ 容器 ${name} 已重启${NC}"
-    else
-        echo -e "${RED}✗ 重启失败${NC}"
-    fi
+do_stop() {
+    ask_for_selection || return
+    echo -e "${YELLOW}正在停止 ${SELECTED_NAME} ...${NC}"
+    docker stop "$SELECTED_NAME" >/dev/null && echo -e "${GREEN}成功${NC}" || echo -e "${RED}失败${NC}"
+    read -p "按回车键继续..."
 }
 
-# 删除容器
-delete_container() {
-    local name=$1
-    echo -e "${RED}警告: 即将删除容器 ${name}${NC}"
+do_restart() {
+    ask_for_selection || return
+    echo -e "${YELLOW}正在重启 ${SELECTED_NAME} ...${NC}"
+    docker restart "$SELECTED_NAME" >/dev/null && echo -e "${GREEN}成功${NC}" || echo -e "${RED}失败${NC}"
+    read -p "按回车键继续..."
+}
+
+do_delete() {
+    ask_for_selection || return
+    echo -e "${RED}警告：即将删除容器 ${SELECTED_NAME} ${NC}"
     printf "确认删除? (y/n): "
     read confirm
-    if [ "$confirm" = "y" ]; then
-        echo -e "${YELLOW}正在删除容器 ${name}...${NC}"
-        if docker rm -f "$name" >/dev/null 2>&1; then
-            echo -e "${GREEN}✓ 容器 ${name} 已删除${NC}"
-        else
-            echo -e "${RED}✗ 删除失败${NC}"
-        fi
+    if [ "$confirm" == "y" ]; then
+        docker rm -f "$SELECTED_NAME" >/dev/null && echo -e "${GREEN}删除成功${NC}" || echo -e "${RED}删除失败${NC}"
     else
-        echo -e "${YELLOW}已取消删除${NC}"
+        echo "已取消"
     fi
+    read -p "按回车键继续..."
 }
 
-# 查看容器日志
-view_logs() {
-    local name=$1
-    echo -e "${CYAN}容器 ${name} 的日志:${NC}"
-    echo "--------------------------------------------------------------------------------"
-    docker logs --tail 50 "$name"
-    echo "--------------------------------------------------------------------------------"
+do_logs() {
+    ask_for_selection || return
+    clear
+    echo -e "${CYAN}容器 ${SELECTED_NAME} 日志:${NC}"
+    echo "------------------------------------------------"
+    docker logs --tail 20 "$SELECTED_NAME"
+    echo "------------------------------------------------"
+    read -p "按回车键返回菜单..."
 }
 
-# 主菜单
-show_menu() {
-    echo ""
-    echo -e "${BLUE}===================================${NC}"
-    echo -e "${BLUE}请选择操作:${NC}"
-    echo -e "${BLUE}===================================${NC}"
+# 主循环
+while true; do
+    clear
+    
+    # 1. 先列出容器
+    if ! list_containers; then
+        echo "暂无容器，请先使用 deploy-nat.sh 创建。"
+        exit 0
+    fi
+
+    # 2. 显示菜单
+    echo -e "${CYAN}请选择操作:${NC}"
     echo "  1. 启动容器"
     echo "  2. 停止容器"
     echo "  3. 重启容器"
@@ -152,96 +167,18 @@ show_menu() {
     echo "  5. 查看日志"
     echo "  6. 刷新列表"
     echo "  0. 退出"
-    echo -e "${BLUE}===================================${NC}"
+    echo "==================================="
     printf "请输入选项 [0-6]: "
-}
+    read option
 
-# 选择容器
-select_container() {
-    echo ""
-    echo -e "${YELLOW}>>> 请从上方列表中选择一个容器 <<<${NC}"
-    printf "${CYAN}请输入容器序号 [1-${TOTAL_COUNT}]: ${NC}"
-    read choice
-    
-    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$TOTAL_COUNT" ]; then
-        echo -e "${RED}无效的序号${NC}"
-        return 1
-    fi
-    
-    eval "SELECTED_CONTAINER=\$CONTAINER_${choice}"
-    echo "$SELECTED_CONTAINER"
-}
-
-# 主循环
-main() {
-    while true; do
-        clear
-        echo -e "${CYAN}"
-        echo "  _   _    _  _____   __  __                                   "
-        echo " | \ | |  / \|_   _| |  \/  | __ _ _ __   __ _  __ _  ___ _ __ "
-        echo " |  \| | / _ \ | |   | |\/| |/ _\` | '_ \ / _\` |/ _\` |/ _ \ '__|"
-        echo " | |\  |/ ___ \| |   | |  | | (_| | | | | (_| | (_| |  __/ |   "
-        echo " |_| \_/_/   \_\_|   |_|  |_|\__,_|_| |_|\__,_|\__, |\___|_|   "
-        echo "                                               |___/            "
-        echo -e "${NC}"
-        
-        if ! list_containers; then
-            echo ""
-            echo -e "${YELLOW}提示: 使用 deploy-nat.sh 创建新的 NAT 容器${NC}"
-            echo ""
-            read -p "按回车键退出..."
-            exit 0
-        fi
-        
-        show_menu
-        read option
-        
-        case $option in
-            1)
-                clear
-                list_containers
-                container=$(select_container)
-                [ -n "$container" ] && start_container "$container"
-                ;;
-            2)
-                clear
-                list_containers
-                container=$(select_container)
-                [ -n "$container" ] && stop_container "$container"
-                ;;
-            3)
-                clear
-                list_containers
-                container=$(select_container)
-                [ -n "$container" ] && restart_container "$container"
-                ;;
-            4)
-                clear
-                list_containers
-                container=$(select_container)
-                [ -n "$container" ] && delete_container "$container"
-                ;;
-            5)
-                clear
-                list_containers
-                container=$(select_container)
-                [ -n "$container" ] && view_logs "$container"
-                ;;
-            6)
-                continue
-                ;;
-            0)
-                echo -e "${GREEN}再见!${NC}"
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}无效的选项${NC}"
-                ;;
-        esac
-        
-        echo ""
-        read -p "按回车键继续..."
-    done
-}
-
-main
+    case $option in
+        1) do_start ;;
+        2) do_stop ;;
+        3) do_restart ;;
+        4) do_delete ;;
+        5) do_logs ;;
+        6) continue ;; # 刷新
+        0) echo "Bye!"; exit 0 ;;
+        *) echo -e "${RED}无效选项${NC}"; sleep 1 ;;
+    esac
+done
