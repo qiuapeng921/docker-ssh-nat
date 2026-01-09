@@ -194,22 +194,32 @@ main() {
         
         case $option in
             1)
+                echo ""
+                list_containers
                 container=$(select_container)
                 [ -n "$container" ] && start_container "$container"
                 ;;
             2)
+                echo ""
+                list_containers
                 container=$(select_container)
                 [ -n "$container" ] && stop_container "$container"
                 ;;
             3)
+                echo ""
+                list_containers
                 container=$(select_container)
                 [ -n "$container" ] && restart_container "$container"
                 ;;
             4)
+                echo ""
+                list_containers
                 container=$(select_container)
                 [ -n "$container" ] && delete_container "$container"
                 ;;
             5)
+                echo ""
+                list_containers
                 container=$(select_container)
                 [ -n "$container" ] && view_logs "$container"
                 ;;
