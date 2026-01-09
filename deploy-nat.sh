@@ -91,10 +91,20 @@ fi
 # 函数: 检查端口是否被占用
 is_port_occupied() {
     local port=$1
-    if docker ps --format '{{.Ports}}' | grep -q ":${port}->"; then return 0; fi
-    if command -v netstat >/dev/null 2>&1; then
-        if netstat -tuln | grep -q ":${port} "; then return 0; fi
+    # 1. 优先检查 Docker 容器已映射的端口 (跨平台通用)
+    if docker ps --format '{{.Ports}}' | grep -q ":${port}->"; then
+        return 0
     fi
+    
+    # 2. 尝试检查系统端口 (带容错)
+    # 针对 Linux 环境使用 netstat -tuln
+    if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v netstat >/dev/null 2>&1; then
+        if netstat -tuln | grep -q ":${port} "; then return 0; fi
+    # 针对 Windows (Git Bash) 环境使用 netstat -ano
+    elif [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
+        if netstat -ano | grep -q "LISTENING" | grep -q ":${port} "; then return 0; fi
+    fi
+
     return 1
 }
 
