@@ -116,12 +116,9 @@ fi
 echo ""
 echo -e "${YELLOW}正在创建容器...${NC}"
 
-# 计算容器内端口范围(从 10000 开始)
-CONTAINER_PORT_END=$((10000 + PORT_COUNT - 1))
-
 if docker run -d \
     -p "${SSH_PORT}:22" \
-    -p "${PORT_START}-${PORT_END}:10000-${CONTAINER_PORT_END}" \
+    -p "${PORT_START}-${PORT_END}:${PORT_START}-${PORT_END}" \
     -e ROOT_PASSWORD="${PASSWORD}" \
     -e TZ=Asia/Shanghai \
     --name "${CONTAINER_NAME}" \
@@ -135,7 +132,7 @@ else
     echo "尝试查看错误信息:"
     docker run -d \
         -p "${SSH_PORT}:22" \
-        -p "${PORT_START}-${PORT_END}:10000-${CONTAINER_PORT_END}" \
+        -p "${PORT_START}-${PORT_END}:${PORT_START}-${PORT_END}" \
         -e ROOT_PASSWORD="${PASSWORD}" \
         -e TZ=Asia/Shanghai \
         --name "${CONTAINER_NAME}" \

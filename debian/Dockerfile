@@ -60,9 +60,8 @@ COPY banner.txt /etc/ssh/banner.txt
 # 暴露 SSH 端口
 EXPOSE 22
 
-# 暴露 NAT 端口范围(可根据需要调整)
-# 用于 NAT 小鸡场景,提供给用户使用的端口段
-EXPOSE 10000-10100
+# NAT 端口范围在运行时通过 -p 参数指定
+# 例如: -p 10000-10100:10000-10100
 
 # 启动脚本
 COPY docker-entrypoint.sh /usr/local/bin/
