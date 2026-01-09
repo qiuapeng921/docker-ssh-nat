@@ -85,8 +85,8 @@ get_next_ip_index() {
     # 合并、排序、去重
     USED_INDICES=$(echo -e "${RESERVED_BY_NAME}\n${RESERVED_BY_NET}" | sort -n | uniq)
     
-    # 从 1 开始查找第一个未使用的序号
-    for i $(seq 1 254); do
+    # 从 2 开始查找第一个未使用的序号 ( .1 通常是网关)
+    for i in $(seq 2 254); do
         if ! echo "$USED_INDICES" | grep -qx "$i"; then
             echo "$i"
             return 0
