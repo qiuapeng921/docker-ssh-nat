@@ -74,9 +74,9 @@ fi
 
 # 获取下一个可用的 IP 序号 (1-254)
 get_next_ip_index() {
-    # 提取网络中已分配的所有 IP 的最后一位
-    USED_INDICES=$(docker network inspect "$NETWORK_NAME" --format '{{range .Containers}}{{.IPv4Address}} {{end}}' | \
-        tr ' ' '\n' | grep "^$IP_PREFIX\." | cut -d'.' -f4 | cut -d'/' -f1 | sort -n)
+    # 提取所有 nat- 容器的序号（包括已停止的）
+    USED_INDICES=$(docker ps -a --filter "name=^nat-" --format "{{.Names}}" | \
+        sed 's/nat-//' | grep -E '^[0-9]+$' | sort -n)
     
     # 从 1 开始查找第一个未使用的序号
     for i in $(seq 1 254); do
@@ -161,6 +161,6 @@ RUN_ERR=$(docker run -d \
 
 echo -e "${GREEN}✓ 容器创建成功${NC}"
 echo -e "\n${BLUE}部署完成! 🎉${NC}"
-echo "SSH 连接: ssh root@服务器IP -p ${SSH_PORT}"
+echo "SSH 连接: ssh root@127.0.0.1 -p ${SSH_PORT}"
 echo "内网 IP: ${CONTAINER_IP}"
 echo "Root 密码: ${PASS}"
