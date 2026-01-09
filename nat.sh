@@ -122,6 +122,7 @@ deploy_container() {
         --memory-swap="${MEM}M" \
         -p "${SSH_PORT}:22" \
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}" \
+        -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}/udp" \
         -e ROOT_PASSWORD="${PASS}" \
         -e TZ=Asia/Shanghai \
         --name "${CONTAINER_NAME}" \
