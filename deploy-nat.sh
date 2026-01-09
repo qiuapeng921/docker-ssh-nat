@@ -115,18 +115,33 @@ fi
 # 运行容器
 echo ""
 echo -e "${YELLOW}正在创建容器...${NC}"
+
+# 计算容器内端口范围(从 10000 开始)
+CONTAINER_PORT_END=$((10000 + PORT_COUNT - 1))
+
 if docker run -d \
     -p "${SSH_PORT}:22" \
-    -p "${PORT_START}-${PORT_END}:10000-$((10000 + PORT_COUNT - 1))" \
+    -p "${PORT_START}-${PORT_END}:10000-${CONTAINER_PORT_END}" \
     -e ROOT_PASSWORD="${PASSWORD}" \
     -e TZ=Asia/Shanghai \
     --name "${CONTAINER_NAME}" \
     --hostname "${CONTAINER_NAME}" \
     --restart unless-stopped \
-    ${IMAGE_NAME} > /dev/null; then
+    ${IMAGE_NAME} > /dev/null 2>&1; then
     echo -e "${GREEN}✓ 容器创建成功${NC}"
 else
     echo -e "${RED}✗ 容器创建失败${NC}"
+    echo ""
+    echo "尝试查看错误信息:"
+    docker run -d \
+        -p "${SSH_PORT}:22" \
+        -p "${PORT_START}-${PORT_END}:10000-${CONTAINER_PORT_END}" \
+        -e ROOT_PASSWORD="${PASSWORD}" \
+        -e TZ=Asia/Shanghai \
+        --name "${CONTAINER_NAME}" \
+        --hostname "${CONTAINER_NAME}" \
+        --restart unless-stopped \
+        ${IMAGE_NAME}
     exit 1
 fi
 
@@ -140,9 +155,19 @@ if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo -e "${GREEN}✓ 容器运行正常${NC}"
 else
     echo -e "${RED}✗ 容器启动失败${NC}"
-    echo "查看日志: docker logs ${CONTAINER_NAME}"
+    echo ""
+    echo "容器日志:"
+    docker logs ${CONTAINER_NAME}
+    echo ""
+    echo "容器状态:"
+    docker ps -a | grep ${CONTAINER_NAME}
     exit 1
 fi
+
+# 显示容器启动日志
+echo ""
+echo -e "${YELLOW}容器启动日志:${NC}"
+docker logs ${CONTAINER_NAME}
 
 echo ""
 echo -e "${BLUE}===================================${NC}"
