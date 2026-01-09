@@ -1,5 +1,5 @@
 #!/bin/bash
-# NAT 小鸡全自动部署脚本 (极速性能版)
+# NAT 小鸡全自动部署脚本 (极速扫描修正版)
 # 用法: bash deploy-nat.sh -t <debian|alpine> [选项]
 
 # 自动提升至 Bash 运行
@@ -17,7 +17,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Windows 环境适配: 禁用 Git Bash 的路径转换
+# Windows 环境适配
 export MSYS_NO_PATHCONV=1
 export COMPOSE_CONVERT_WINDOWS_PATHS=1
 
@@ -40,7 +40,7 @@ show_help() {
     exit 0
 }
 
-# 解析参数
+# 参数解析
 TYPE=""
 PASS=""
 CPU=$DEFAULT_CPU
@@ -62,34 +62,51 @@ if [ -z "$TYPE" ]; then
     exit 1
 fi
 
-# 处理默认内存逻辑
+# 处理默认内存
 if [ "$TYPE" = "debian" ]; then MIN_MEM=512; else MIN_MEM=128; fi
 MEM=${MEM:-$MIN_MEM}
 [ "$MEM" -lt "$MIN_MEM" ] && MEM=$MIN_MEM
 
-# 随机密码逻辑
+# 随机密码
 if [ -z "$PASS" ]; then
     PASS=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c $((8 + RANDOM % 3)))
 fi
 
 echo -e "${YELLOW}正在快速扫描端口资源...${NC}"
 
-# --- 核心优化: 预加载占用端口 ---
-# 1. 获取 Docker 所有已映射端口
-OCCUPIED_DOCKER=$(docker ps --format '{{.Ports}}' | grep -oP '(?<=:)\d+(?=->)' || echo "")
+# --- 核心优化: 修正端口检测逻辑 ---
 
-# 2. 获取系统监听端口
-OCCUPIED_SYSTEM=""
+# 提取所有已被占用的端口(含端口段)
+RAW_DOCKER_PORTS=$(docker ps --format '{{.Ports}}' | grep -oP '(?<=:)[0-9-]+(?=->)' | sort -u || echo "")
+
+# 系统端口
+RAW_SYSTEM_PORTS=""
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    OCCUPIED_SYSTEM=$(netstat -tuln | awk '{print $4}' | awk -F: '{print $NF}' || echo "")
+    RAW_SYSTEM_PORTS=$(netstat -tuln | awk '{print $4}' | awk -F: '{print $NF}' | grep -E '^[0-9]+$' || echo "")
 elif [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
-    OCCUPIED_SYSTEM=$(netstat -ano | grep LISTENING | awk '{print $3}' | awk -F: '{print $NF}' || echo "")
+    RAW_SYSTEM_PORTS=$(netstat -ano | grep LISTENING | awk '{print $3}' | awk -F: '{print $NF}' | grep -E '^[0-9]+$' || echo "")
 fi
 
-# 合并所有占用端口
-ALL_OCCUPIED=" $OCCUPIED_DOCKER $OCCUPIED_SYSTEM "
+# 展开所有端口段 (例如 20000-20099 -> 20000 20001 ...)
+EXPANDED_PORTS=""
+for item in $RAW_DOCKER_PORTS $RAW_SYSTEM_PORTS; do
+    if [[ "$item" == *"-"* ]]; then
+        start=${item%-*}
+        end=${item#*-}
+        # 简单校验，防止恶意大范围
+        if [ $((end - start)) -lt 2000 ]; then
+            EXPANDED_PORTS="$EXPANDED_PORTS $(seq $start $end)"
+        else
+            EXPANDED_PORTS="$EXPANDED_PORTS $start $end"
+        fi
+    else
+        EXPANDED_PORTS="$EXPANDED_PORTS $item"
+    fi
+done
 
-# 高速检测函数
+# 转换为检索字符串
+ALL_OCCUPIED=" $EXPANDED_PORTS "
+
 is_port_free() {
     if [[ "$ALL_OCCUPIED" == *" $1 "* ]]; then return 1; fi
     return 0
@@ -104,11 +121,11 @@ done
 # 寻找 NAT 块
 NAT_START=""
 for ((current=NAT_SEARCH_START; current<60000; current+=NAT_PORT_COUNT)); do
-    found_block=true
+    block_ok=true
     for ((p=current; p<current+NAT_PORT_COUNT; p++)); do
-        if ! is_port_free $p; then found_block=false; break; fi
+        if ! is_port_free $p; then block_ok=false; break; fi
     done
-    if [ "$found_block" = true ]; then NAT_START=$current; break; fi
+    if [ "$block_ok" = true ]; then NAT_START=$current; break; fi
 done
 
 if [ -z "$SSH_PORT" ] || [ -z "$NAT_START" ]; then
@@ -132,7 +149,6 @@ printf "确认部署? (y/n): "
 read confirm
 [ "$confirm" != "y" ] && exit 0
 
-# 构建/运行...
 IMAGE_NAME="${TYPE}-ssh:latest"
 if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}$"; then
     echo -e "${YELLOW}正在构建镜像...${NC}"
@@ -154,8 +170,6 @@ if docker run -d \
     "${IMAGE_NAME}"; then
     
     echo -e "${GREEN}✓ 容器创建成功${NC}"
-    ACTUAL_MEM=$(docker inspect "${CONTAINER_NAME}" --format '{{.HostConfig.Memory}}')
-    [ "$ACTUAL_MEM" != "0" ] && echo -e "${GREEN}✓ 资源限制已生效${NC}"
 else
     echo -e "${RED}✗ 启动失败${NC}"
     exit 1
