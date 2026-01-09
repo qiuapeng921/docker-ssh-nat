@@ -24,6 +24,13 @@ cd docker-ssh-nat
 chmod +x deploy-nat.sh
 ```
 
+**镜像仓库:**
+本项目镜像已托管至 GitHub Container Registry (GHCR):
+- Debian: `ghcr.io/qiuapeng921/docker-ssh-nat-debian:latest`
+- Alpine: `ghcr.io/qiuapeng921/docker-ssh-nat-alpine:latest`
+
+> 脚本 `deploy-nat.sh` 会自动检测本地是否有镜像，如果没有会自动触发构建。
+
 ### 2. 启动小鸡
 ```bash
 # 用法: ./deploy-nat.sh -t <镜像类型> [选项]
