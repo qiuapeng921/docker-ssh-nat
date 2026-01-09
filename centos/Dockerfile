@@ -34,7 +34,11 @@ COPY banner.txt /etc/ssh/banner.txt
 RUN chmod 644 /etc/ssh/banner.txt
 RUN echo 'Banner /etc/ssh/banner.txt' >> /etc/ssh/sshd_config
 
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 22
 EXPOSE 10000-10100
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["/usr/sbin/sshd", "-D"]
