@@ -1,5 +1,5 @@
 # 基于 Debian 的基础镜像
-FROM debian:bookworm-slim
+FROM debian:latest
 
 # 设置环境变量,避免交互式提示
 ENV DEBIAN_FRONTEND=noninteractive
@@ -13,37 +13,19 @@ ENV ROOT_PASSWORD=123456
 # 更新软件包列表并安装必要的工具
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    # 网络工具
+    openssh-server \
     curl \
     wget \
-    iputils-ping \
-    telnet \
-    traceroute \
-    dnsutils \
-    # SSH 服务
-    openssh-server \
-    # 防火墙和网络配置
-    iptables \
-    iproute2 \
-    net-tools \
-    # 文本编辑器
+    cron \
+    dos2unix \
     vim \
-    # 系统监控工具
     htop \
-    iotop \
-    lsof \
+    net-tools \
     procps \
-    # 压缩解压工具
-    tar \
-    gzip \
-    unzip \
-    zip \
-    # 其他实用工具
-    tree \
+    sysvinit-utils \
+    lsb-release \
     ca-certificates \
     tzdata \
-    dos2unix \
-    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # 配置 SSH 服务

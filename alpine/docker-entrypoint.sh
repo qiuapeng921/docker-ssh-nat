@@ -23,12 +23,20 @@ else
 fi
 
 # 启动定时任务
-if command -v crond >/dev/null 2>&1; then
-    crond
-    echo "✓ 定时任务服务已启动"
-fi
+[ -x /usr/sbin/crond ] && crond
 
-echo "✓ SSH 服务启动中..."
+# ==================== 原生服务启动 (OpenRC) ====================
+# 1. 配置 OpenRC 容器适配 (避免报错)
+sed -i 's/#rc_sys=""/rc_sys="docker"/' /etc/rc.conf 2>/dev/null || true
+echo 'rc_provide="loopback net"' >> /etc/rc.conf
+
+# 2. 初始化并启动所有注册到 default 级别的服务 (如哪吒、hysteria)
+mkdir -p /run/openrc && touch /run/openrc/softlevel
+echo "default" > /run/openrc/softlevel
+/sbin/openrc default
+# ==============================================================
+
+echo "✓ 系统就绪"
 
 # 执行传入的命令
 exec "$@"

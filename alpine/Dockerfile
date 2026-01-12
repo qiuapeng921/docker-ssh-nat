@@ -6,38 +6,20 @@ ENV TZ=Asia/Shanghai
 ENV ROOT_PASSWORD=123456
 
 # 安装必要的工具
-RUN apk add --no-cache \
-    # 网络工具
+RUN apk update && \
+    apk add --no-cache \
+    openssh \
     curl \
     wget \
-    iputils \
-    busybox-extras \
-    bind-tools \
-    # SSH 服务
-    openssh-server \
-    # 防火墙和网络配置
-    iptables \
-    iproute2 \
-    net-tools \
-    # 文本编辑器
-    vim \
-    # 系统监控工具
-    htop \
-    iotop \
-    lsof \
-    procps \
-    # 压缩解压工具
-    tar \
-    gzip \
-    unzip \
-    zip \
-    # 其他实用工具
-    tree \
     bash \
-    ca-certificates \
-    tzdata \
     dos2unix \
+    vim \
+    htop \
+    procps \
     dcron \
+    openrc \
+    ca-certificates \
+    tzdata
     && cp /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone
 

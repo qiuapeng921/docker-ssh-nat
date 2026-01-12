@@ -22,7 +22,7 @@ else
     echo "✓ 检测到已完成初始化，跳过密码设置（保持现有密码）"
 fi
 
-# 启动 cron 服务 (因为你在 Dockerfile 中安装了 dcron)
+# 启动 cron 服务
 if command -v crond >/dev/null 2>&1; then
     crond
     echo "✓ 定时任务服务已启动"
@@ -31,7 +31,25 @@ elif command -v cron >/dev/null 2>&1; then
     echo "✓ 定时任务服务已启动"
 fi
 
-echo "✓ SSH 服务启动中..."
+# 启动 cron 服务
+[ -x /etc/init.d/cron ] && /etc/init.d/cron start
+
+# ==================== 原生服务启动 (SysVinit) ====================
+# 扫描并启动所有注册在 rc2 级别的第三方服务
+echo "▶ 正在拉起已注册系统服务..."
+if [ -d "/etc/rc2.d" ]; then
+    for s in /etc/rc2.d/S*; do
+        [ -x "$s" ] || continue
+        s_name=$(basename "$s" | cut -c4-) # 提取服务名
+        case "$s_name" in
+            ssh*|cron*|networking|rmnologin) continue ;;
+            *) "$s" start >/dev/null 2>&1 & ;;
+        esac
+    done
+fi
+# ================================================================
+
+echo "✓ 系统就绪"
 
 # 执行传入的命令
 exec "$@"
