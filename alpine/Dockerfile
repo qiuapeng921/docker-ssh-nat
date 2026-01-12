@@ -1,53 +1,35 @@
-# 基于 Alpine 的基础镜像
+# Alpine 容器镜像 (OpenRC 模式)
 FROM alpine:latest
 
-# 设置环境变量
 ENV TZ=Asia/Shanghai
-ENV ROOT_PASSWORD=123456
 
-# 安装必要的工具
+# 安装必要工具
 RUN apk update && \
     apk add --no-cache \
-    openssh \
-    curl \
-    wget \
-    bash \
-    dos2unix \
-    vim \
-    htop \
-    procps \
-    dcron \
-    openrc \
-    ca-certificates \
-    tzdata \
+    openssh curl wget bash vim htop procps dcron \
+    openrc openrc-init \
+    ca-certificates tzdata \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone
 
-# 配置 SSH 服务
+# SSH 配置
 RUN ssh-keygen -A && \
-    mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh && \
-    # 允许 root 密码登录
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    # 启用密码认证
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    # 禁用原有 Banner，改用 MOTD (登录后显示)
-    sed -i 's/^Banner/#Banner/g' /etc/ssh/sshd_config && \
-    # 设置默认 shell 为 bash
-    sed -i 's#/bin/ash#/bin/bash#g' /etc/passwd
+    mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
+    sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's#/bin/ash#/bin/bash#g' /etc/passwd && \
+    rc-update add sshd default && \
+    rc-update add dcron default
 
-# 设置 SSH 登录后的欢迎语 (MOTD)
+# OpenRC 容器模式配置
+RUN sed -i 's/#rc_sys=""/rc_sys="docker"/' /etc/rc.conf && \
+    echo 'rc_provide="loopback net"' >> /etc/rc.conf
+
+# 设置默认密码
+RUN echo 'root:123456' | chpasswd
+
+# MOTD
 COPY banner.txt /etc/motd
 
-# 暴露 SSH 端口
 EXPOSE 22
-
-# 启动脚本
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# 设置入口点
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-
-# 默认启动 SSH 服务
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+CMD ["/sbin/init"]

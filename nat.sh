@@ -114,7 +114,9 @@ deploy_container() {
         fi
     fi
 
-    # 运行
+    # 运行 (两种镜像都需要 privileged 以支持 init 系统)
+    local PRIV_FLAG="--privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw"
+    
     local RUN_ERR
     RUN_ERR=$(docker run -d \
         --cpus="${CPU}" \
@@ -124,6 +126,7 @@ deploy_container() {
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}" \
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}/udp" \
         --cap-add=MKNOD \
+        $PRIV_FLAG \
         -e ROOT_PASSWORD="${PASS}" \
         -e TZ=Asia/Shanghai \
         --name "${CONTAINER_NAME}" \

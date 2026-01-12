@@ -1,58 +1,37 @@
-# 基于 Debian 的基础镜像
+# Debian 容器镜像 (Systemd 模式)
 FROM debian:latest
 
-# 设置环境变量,避免交互式提示
 ENV DEBIAN_FRONTEND=noninteractive
-
-# 设置时区(可根据需要修改)
 ENV TZ=Asia/Shanghai
 
-# 设置默认密码
-ENV ROOT_PASSWORD=123456
-
-# 更新软件包列表并安装必要的工具
+# 安装必要工具 + systemd
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    openssh-server \
-    curl \
-    wget \
-    cron \
-    dos2unix \
-    vim \
-    htop \
-    net-tools \
-    procps \
-    sysvinit-utils \
-    lsb-release \
-    ca-certificates \
-    tzdata \
-    && rm -rf /var/lib/apt/lists/*
+    systemd systemd-sysv \
+    openssh-server curl wget cron vim htop procps net-tools \
+    ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /lib/systemd/system/multi-user.target.wants/* \
+    && rm -f /etc/systemd/system/*.wants/* \
+    && rm -f /lib/systemd/system/local-fs.target.wants/* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*udev* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
+    && rm -f /lib/systemd/system/basic.target.wants/* \
+    && rm -f /lib/systemd/system/anaconda.target.wants/*
 
-# 配置 SSH 服务
-RUN mkdir -p /var/run/sshd && \
-    mkdir -p /root/.ssh && \
+# SSH 配置
+RUN mkdir -p /var/run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
-    # 允许 root 密码登录
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    # 允许密码认证
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    # 禁用原有 Banner，改用 MOTD (登录后显示)
-    sed -i 's/^Banner/#Banner/g' /etc/ssh/sshd_config && \
-    # 禁用 PAM
-    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd
+    sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    systemctl enable ssh cron
 
-# 设置 SSH 登录后的欢迎语 (MOTD)
+# 设置默认密码
+RUN echo 'root:123456' | chpasswd
+
+# MOTD
 COPY banner.txt /etc/motd
 
-# 暴露 SSH 端口
 EXPOSE 22
-
-# 启动脚本
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# 设置入口点
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-
-# 默认启动 SSH 服务
-CMD ["/usr/sbin/sshd", "-D"]
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
