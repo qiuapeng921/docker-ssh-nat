@@ -2,6 +2,7 @@
 FROM alpine:latest
 
 ENV TZ=Asia/Shanghai
+ENV ROOT_PASSWORD=123456
 
 # 安装必要工具
 RUN apk update && \
@@ -25,11 +26,13 @@ RUN ssh-keygen -A && \
 RUN sed -i 's/#rc_sys=""/rc_sys="docker"/' /etc/rc.conf && \
     echo 'rc_provide="loopback net"' >> /etc/rc.conf
 
-# 设置默认密码
-RUN echo 'root:123456' | chpasswd
+# 入口脚本
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # MOTD
 COPY banner.txt /etc/motd
 
 EXPOSE 22
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["/sbin/init"]
