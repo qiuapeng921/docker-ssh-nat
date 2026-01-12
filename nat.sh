@@ -267,13 +267,13 @@ while true; do
     list_containers
     
     echo -e "${CYAN}操作菜单:${NC}"
-    echo "  [1] 新建容器 (+)"
+    echo "  [1] 新建 (+)"
     echo "  [2] 启动"
     echo "  [3] 停止"
     echo "  [4] 重启"
     echo "  [5] 删除"
     echo "  [6] 日志"
-    echo "  [7] 进入容器"
+    echo "  [7] 进入"
     echo "  [0] 退出"
     echo "==================================="
     printf "选项: "
