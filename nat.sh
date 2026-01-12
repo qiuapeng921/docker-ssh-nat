@@ -280,15 +280,12 @@ while true; do
             ;;
         2) 
             ask_for_selection && docker start "$SELECTED_NAME" >/dev/null && echo "成功" 
-            read -p "" 
             ;;
         3) 
             ask_for_selection && docker stop "$SELECTED_NAME" >/dev/null && echo "成功" 
-            read -p "" 
             ;;
         4) 
             ask_for_selection && docker restart "$SELECTED_NAME" >/dev/null && echo "成功" 
-            read -p "" 
             ;;
         5) 
             ask_for_selection 
@@ -297,13 +294,12 @@ while true; do
                 read confirm
                 [ "$confirm" = "y" ] && docker rm -f "$SELECTED_NAME" >/dev/null && echo "已删除"
             fi
-            read -p ""
             ;;
         6) 
             ask_for_selection 
             if [ -n "$SELECTED_NAME" ]; then
                 clear
-                docker logs --tail 20 "$SELECTED_NAME"
+                docker logs "$SELECTED_NAME"
                 echo "---"
                 read -p "按回车返回..." 
             fi
