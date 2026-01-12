@@ -273,6 +273,7 @@ while true; do
     echo "  [4] 重启"
     echo "  [5] 删除"
     echo "  [6] 日志"
+    echo "  [7] 进入容器"
     echo "  [0] 退出"
     echo "==================================="
     printf "选项: "
@@ -306,6 +307,13 @@ while true; do
                 docker logs "$SELECTED_NAME"
                 echo "---"
                 read -p "按回车返回..." 
+            fi
+            ;;
+        7)
+            ask_for_selection
+            if [ -n "$SELECTED_NAME" ]; then
+                echo -e "${GREEN}进入容器: $SELECTED_NAME${NC}"
+                docker exec -it "$SELECTED_NAME" bash
             fi
             ;;
         0) echo "Bye!"; exit 0 ;;
