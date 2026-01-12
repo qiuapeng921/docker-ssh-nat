@@ -123,6 +123,7 @@ deploy_container() {
         -p "${SSH_PORT}:22" \
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}" \
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}/udp" \
+        --cap-add=MKNOD \
         -e ROOT_PASSWORD="${PASS}" \
         -e TZ=Asia/Shanghai \
         --name "${CONTAINER_NAME}" \

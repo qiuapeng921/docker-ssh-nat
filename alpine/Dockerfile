@@ -3,6 +3,7 @@ FROM alpine:latest
 
 # 设置环境变量
 ENV TZ=Asia/Shanghai
+ENV ROOT_PASSWORD=123456
 
 # 安装必要的工具
 RUN apk add --no-cache \
@@ -35,6 +36,8 @@ RUN apk add --no-cache \
     bash \
     ca-certificates \
     tzdata \
+    dos2unix \
+    dcron \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone
 

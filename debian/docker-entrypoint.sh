@@ -1,25 +1,34 @@
 #!/bin/bash
 set -e
 
-# 设置 root 密码(如果环境变量中有设置)
-if [ -n "$ROOT_PASSWORD" ]; then
+# 只有在第一次启动时才设置密码和公钥
+if [ ! -f "/etc/.initialized" ]; then
+    echo "▶ 正在进行首次启动初始化..."
+    
+    # 设置 root 密码
     echo "root:$ROOT_PASSWORD" | chpasswd
-    echo "✓ 已设置密码: $ROOT_PASSWORD"
+    echo "✓ 已设置 root 密码"
+
+    # 如果提供了 SSH 公钥
+    if [ -n "$SSH_PUBLIC_KEY" ]; then
+        echo "$SSH_PUBLIC_KEY" > /root/.ssh/authorized_keys
+        chmod 600 /root/.ssh/authorized_keys
+        echo "✓ 已添加 SSH 公钥"
+    fi
+
+    # 创建标记文件
+    touch /etc/.initialized
 else
-    # 自动生成 8-10 位随机密码
-    PASSWORD_LENGTH=$((8 + RANDOM % 3))  # 随机 8-10 位
-    AUTO_PASSWORD=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c $PASSWORD_LENGTH)
-    echo "root:$AUTO_PASSWORD" | chpasswd
-    echo "⚠ 未设置 ROOT_PASSWORD 环境变量"
-    echo "✓ 已自动生成随机密码: $AUTO_PASSWORD"
-    echo "⚠ 请妥善保存此密码!"
+    echo "✓ 检测到已完成初始化，跳过密码设置（保持现有密码）"
 fi
 
-# 如果提供了 SSH 公钥,添加到 authorized_keys
-if [ -n "$SSH_PUBLIC_KEY" ]; then
-    echo "$SSH_PUBLIC_KEY" > /root/.ssh/authorized_keys
-    chmod 600 /root/.ssh/authorized_keys
-    echo "✓ 已添加 SSH 公钥"
+# 启动 cron 服务 (因为你在 Dockerfile 中安装了 dcron)
+if command -v crond >/dev/null 2>&1; then
+    crond
+    echo "✓ 定时任务服务已启动"
+elif command -v cron >/dev/null 2>&1; then
+    service cron start
+    echo "✓ 定时任务服务已启动"
 fi
 
 echo "✓ SSH 服务启动中..."

@@ -7,6 +7,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 # 设置时区(可根据需要修改)
 ENV TZ=Asia/Shanghai
 
+# 设置默认密码
+ENV ROOT_PASSWORD=123456
+
 # 更新软件包列表并安装必要的工具
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -39,6 +42,8 @@ RUN apt-get update && \
     tree \
     ca-certificates \
     tzdata \
+    dos2unix \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # 配置 SSH 服务
