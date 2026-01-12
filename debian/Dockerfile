@@ -25,6 +25,7 @@ RUN mkdir -p /var/run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
     sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i '/pam_nologin/d' /etc/pam.d/sshd && \
     systemctl enable ssh cron
 
 # 入口脚本
