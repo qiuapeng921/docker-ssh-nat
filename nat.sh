@@ -83,8 +83,8 @@ deploy_container() {
 
     local CONTAINER_IP="${IP_PREFIX}.${IP_INDEX}"
     local SSH_PORT=$((10000 + IP_INDEX))
-    local NAT_START=$((20000 + IP_INDEX * 10))
-    local NAT_END=$((NAT_START + 9)) # 每台分配 10 个端口
+    local NAT_START=$((20000 + (IP_INDEX - 1) * 20)) # 步长改为 20，并对齐序号
+    local NAT_END=$((NAT_START + 19)) # 分配 20 个端口
     local CONTAINER_NAME="nat-${TYPE}-${IP_INDEX}"
 
     # 检查重名 (理论上 get_next_ip_index 已经避开了，但双重保险)
@@ -172,8 +172,8 @@ list_containers() {
         
         container_ip="192.168.10.${ip_index}"
         ssh_port=$((10000 + ip_index))
-        nat_start=$((20000 + ip_index * 10))
-        nat_end=$((nat_start + 9)) # 统一显示逻辑
+        nat_start=$((20000 + (ip_index - 1) * 20)) # 统一显示 20 端口逻辑
+        nat_end=$((nat_start + 19)) 
         
         # 状态显示
         if [[ "$status" == *"Up"* ]]; then
