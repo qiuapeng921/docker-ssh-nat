@@ -19,7 +19,7 @@ RUN apk update && \
     dcron \
     openrc \
     ca-certificates \
-    tzdata
+    tzdata \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone
 
