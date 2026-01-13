@@ -36,6 +36,7 @@ ensure_network() {
 ensure_lxcfs() {
     # 检查是否已安装并运行
     if [ -d "/var/lib/lxcfs" ] && pgrep -x lxcfs >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ lxcfs 已就绪${NC}"
         return 0
     fi
     
@@ -165,9 +166,6 @@ deploy_container() {
                       -v /var/lib/lxcfs/proc/stat:/proc/stat:rw \
                       -v /var/lib/lxcfs/proc/swaps:/proc/swaps:rw \
                       -v /var/lib/lxcfs/proc/uptime:/proc/uptime:rw"
-        echo -e "${GREEN}✓ 已启用 lxcfs,容器内将显示限制后的资源${NC}"
-    else
-        echo -e "${YELLOW}⚠ lxcfs 不可用,容器内将显示宿主机全部资源${NC}"
     fi
     
     local RUN_ERR
