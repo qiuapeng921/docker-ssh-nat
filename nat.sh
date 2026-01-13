@@ -59,8 +59,9 @@ ensure_lxcfs() {
         systemctl enable lxcfs >/dev/null 2>&1
         systemctl start lxcfs >/dev/null 2>&1
     else
-        echo -e "${RED}不支持的系统类型,跳过 lxcfs 安装${NC}"
-        return 1
+        echo -e "${YELLOW}⚠ 不支持的系统类型,跳过 lxcfs 安装${NC}"
+        echo -e "${YELLOW}  容器内将显示宿主机全部资源${NC}"
+        return 0  # 不阻止容器创建
     fi
     
     # 验证安装
@@ -68,8 +69,9 @@ ensure_lxcfs() {
         echo -e "${GREEN}✓ lxcfs 安装成功!${NC}"
         return 0
     else
-        echo -e "${RED}✗ lxcfs 安装失败,容器内将显示宿主机全部资源${NC}"
-        return 1
+        echo -e "${YELLOW}⚠ lxcfs 安装失败,容器内将显示宿主机全部资源${NC}"
+        echo -e "${YELLOW}  容器仍将正常创建,但资源视图不会隔离${NC}"
+        return 0  # 不阻止容器创建
     fi
 }
 
