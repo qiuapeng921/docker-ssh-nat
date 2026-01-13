@@ -18,7 +18,9 @@ RUN apt-get update && \
     && rm -f /lib/systemd/system/sockets.target.wants/*udev* \
     && rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
     && rm -f /lib/systemd/system/basic.target.wants/* \
-    && rm -f /lib/systemd/system/anaconda.target.wants/*
+    && rm -f /lib/systemd/system/anaconda.target.wants/* \
+    && ln -sf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone
 
 # SSH 配置
 RUN mkdir -p /var/run/sshd /root/.ssh && \
@@ -35,6 +37,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # MOTD
 COPY banner.txt /etc/motd
 
+WORKDIR /root
 EXPOSE 22
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

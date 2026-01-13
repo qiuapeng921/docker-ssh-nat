@@ -33,6 +33,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # MOTD
 COPY banner.txt /etc/motd
 
+WORKDIR /root
 EXPOSE 22
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["/sbin/init"]
