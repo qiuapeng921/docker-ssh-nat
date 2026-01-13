@@ -175,7 +175,6 @@ deploy_container() {
         --cpus="${CPU}" \
         --memory="${MEM}M" \
         --memory-swap="${MEM}M" \
-        --storage-opt size=1G \
         -p "${SSH_PORT}:22" \
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}" \
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}/udp" \
