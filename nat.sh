@@ -32,6 +32,46 @@ ensure_network() {
     fi
 }
 
+# 确保 lxcfs 已安装并运行 (用于容器内资源视图隔离)
+ensure_lxcfs() {
+    # 检查是否已安装并运行
+    if [ -d "/var/lib/lxcfs" ] && pgrep -x lxcfs >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    echo -e "${YELLOW}检测到 lxcfs 未安装,正在自动安装...${NC}"
+    echo -e "${CYAN}(lxcfs 可让容器内的 htop/free 显示限制后的资源,而非宿主机全部资源)${NC}"
+    
+    # 检测系统类型并安装
+    if [ -f /etc/debian_version ]; then
+        # Ubuntu/Debian
+        echo -e "${YELLOW}检测到 Debian/Ubuntu 系统${NC}"
+        apt-get update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq lxcfs >/dev/null 2>&1
+        systemctl enable lxcfs >/dev/null 2>&1
+        systemctl start lxcfs >/dev/null 2>&1
+    elif [ -f /etc/redhat-release ]; then
+        # CentOS/RHEL
+        echo -e "${YELLOW}检测到 CentOS/RHEL 系统${NC}"
+        yum install -y -q epel-release >/dev/null 2>&1
+        yum install -y -q lxcfs >/dev/null 2>&1
+        systemctl enable lxcfs >/dev/null 2>&1
+        systemctl start lxcfs >/dev/null 2>&1
+    else
+        echo -e "${RED}不支持的系统类型,跳过 lxcfs 安装${NC}"
+        return 1
+    fi
+    
+    # 验证安装
+    if [ -d "/var/lib/lxcfs" ] && pgrep -x lxcfs >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ lxcfs 安装成功!${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ lxcfs 安装失败,容器内将显示宿主机全部资源${NC}"
+        return 1
+    fi
+}
+
 # 获取下一个可用 IP
 get_next_ip_index() {
     # 容器名占用
@@ -74,6 +114,7 @@ deploy_container() {
     echo -e "${BLUE}=== 开始部署 [${TYPE}] ===${NC}"
     
     ensure_network
+    ensure_lxcfs
     
     local IP_INDEX=$(get_next_ip_index)
     if [ -z "$IP_INDEX" ]; then
@@ -101,32 +142,46 @@ deploy_container() {
     echo "Root密码: ${PASS}"
     
     # 镜像拉取/构建
-    local IMAGE_NAME="${TYPE}-ssh:latest"
-    local REMOTE_IMAGE="${GHCR_PREFIX}-${TYPE}:latest"
+    local IMAGE_NAME="${GHCR_PREFIX}-${TYPE}:latest"
 
     if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}$"; then
         echo -e "${YELLOW}拉取镜像...${NC}"
-        if ! docker pull "${REMOTE_IMAGE}"; then
+        if ! docker pull "${IMAGE_NAME}"; then
              echo -e "${YELLOW}拉取失败，尝试本地构建...${NC}"
+             # 本地构建时使用远程镜像名称
              docker build -t "${IMAGE_NAME}" "./${TYPE}"
-        else
-             docker tag "${REMOTE_IMAGE}" "${IMAGE_NAME}"
         fi
     fi
 
     # 运行 (两种镜像都需要 privileged 以支持 init 系统)
     local PRIV_FLAG="--privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw"
     
+    # lxcfs 支持 (如果宿主机安装了 lxcfs,容器内将看到限制后的资源)
+    local LXCFS_MOUNTS=""
+    if [ -d "/var/lib/lxcfs" ]; then
+        LXCFS_MOUNTS="-v /var/lib/lxcfs/proc/cpuinfo:/proc/cpuinfo:rw \
+                      -v /var/lib/lxcfs/proc/diskstats:/proc/diskstats:rw \
+                      -v /var/lib/lxcfs/proc/meminfo:/proc/meminfo:rw \
+                      -v /var/lib/lxcfs/proc/stat:/proc/stat:rw \
+                      -v /var/lib/lxcfs/proc/swaps:/proc/swaps:rw \
+                      -v /var/lib/lxcfs/proc/uptime:/proc/uptime:rw"
+        echo -e "${GREEN}✓ 已启用 lxcfs,容器内将显示限制后的资源${NC}"
+    else
+        echo -e "${YELLOW}⚠ lxcfs 不可用,容器内将显示宿主机全部资源${NC}"
+    fi
+    
     local RUN_ERR
     RUN_ERR=$(docker run -d \
         --cpus="${CPU}" \
         --memory="${MEM}M" \
         --memory-swap="${MEM}M" \
+        --storage-opt size=1G \
         -p "${SSH_PORT}:22" \
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}" \
         -p "${NAT_START}-${NAT_END}:${NAT_START}-${NAT_END}/udp" \
         --cap-add=MKNOD \
         $PRIV_FLAG \
+        $LXCFS_MOUNTS \
         -e ROOT_PASSWORD="${PASS}" \
         -e TZ=Asia/Shanghai \
         --name "${CONTAINER_NAME}" \
@@ -302,15 +357,15 @@ while true; do
                 read confirm
                 [ "$confirm" = "y" ] && docker rm -f "$SELECTED_NAME" >/dev/null && echo "已删除"
             fi
-            read -p "" 
+            read -p ""
             ;;
         6) 
             ask_for_selection 
             if [ -n "$SELECTED_NAME" ]; then
                 clear
-                docker logs "$SELECTED_NAME"
-                echo "---"
-                read -p "按回车返回..." 
+                docker logs -f "$SELECTED_NAME"
+                # echo "---"
+                # read -p "按回车返回..." 
             fi
             ;;
         7)
